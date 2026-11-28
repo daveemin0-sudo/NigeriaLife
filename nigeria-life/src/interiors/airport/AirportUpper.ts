@@ -7,6 +7,11 @@ import { Sequence, steps } from '../../interactions/Sequence';
 import { parkedAirliners } from '../../world/landmarks/OutdoorAirliner';
 import { LIVERIES } from './Airliner';
 import { Escalator, GlassLift, rideLift, rideStair } from './Vertical';
+import { Kit, M, signMesh } from './TerminalKit';
+import { GoodsMesh, stockRun } from '../mall/Goods';
+import { bench, planter, diningChair, diningTable, relight } from '../mall/MallKit';
+import { addSeats, chairsRound, type Seat } from '../places/PlaceSeats';
+import { MallCrowd, MallPlayer, type CrowdSpot } from '../mall/MallCrowd';
 import {
   ESCALATOR_RUN, HALL, HALL_DOWN_OFF, HALL_LIFT, LEVEL_RISE, UPPER_FOOT, UPPER_KEY, UPPER_LIFT, UPPER_ROOM, UPPER_TOP, UPPER_WELL,
 } from './Levels';
@@ -32,69 +37,107 @@ const buy = (label: string, price: number, it: Omit<Item, 'quantity'>, said: str
 const W = UPPER_ROOM.width / 2;
 const L = UPPER_ROOM.length / 2;
 const TABLES: Array<[number, number]> = [];
+/** The gallery's benches, along the glass */
+const BENCHES = [-1, 3.5, 8, 12.5];
 for (const x of [-12.5, -8.5, -4.5]) for (const z of [-7.5, -3.5, 0.5, 4.5]) TABLES.push([x, z]);
 
-/** A counter with a top, and what stands on it */
-function counter(b: Builder, x: number, z: number, length: number, colour: number): void {
-  b.box(colour, 0.9, 1.0, length, x, 0, z, { solid: true });
-  b.box(0xe7e5e4, 1.05, 0.06, length + 0.1, x, 1.0, z, { solid: false });
+/** Every seat: four chairs at each table, the gallery's benches facing the glass */
+function allSeats(): Seat[] {
+  const seats: Seat[] = [];
+  TABLES.forEach(([x, z], i) => seats.push(...chairsRound(x, z, 1.8, 0.9, 0, `table_${i}`)));
+  for (const x of BENCHES) for (const t of [-0.75, 0, 0.75]) seats.push({ x: x + t, z: -L + 2.2, yaw: Math.PI, top: 0.48, group: `gallery_${x}` });
+  return seats;
+}
+const SEATS = allSeats();
+/** About one seat in three has a traveller in it already */
+const CROWD_SEATS = SEATS.filter((_, i) => i % 3 === 1);
+const FREE_SEATS = SEATS.filter((s) => !CROWD_SEATS.includes(s));
+
+/** A food counter: a soft-edged front in the stall's colour, a stone top, its menu lit on the wall behind */
+function counter(k: Kit, group: THREE.Group, b: Builder, x: number, z: number, length: number, front: THREE.Material, menu: string[], colour: string): void {
+  k.soft(front, 0.9, 1.0, length, x, 0, z, 0.06);
+  k.box(M.floorDark, 1.05, 0.05, length + 0.1, x, 1.0, z);
+  k.box(M.steel, 0.7, 0.9, length, -W + 0.4, 0, z);
+  b.occupy(x - 0.45, x + 0.45, z - length / 2, z + length / 2, 1.05);
+  b.occupy(-W, -W + 0.8, z - length / 2, z + length / 2, 0.95);
+  const sign = signMesh(menu, Math.min(length, 3.2), 0.95, { bg: colour, fg: '#ffffff', density: 120, accent: 'rgba(255,255,255,0.55)' });
+  sign.position.set(-W + 0.12, 2.9, z);
+  sign.rotation.y = Math.PI / 2;
+  group.add(sign);
 }
 
-function build(b: Builder): void {
+function build(b: Builder, group: THREE.Group): void {
+  const k = new Kit();
+  const signs = new THREE.Group();
+  signs.name = 'upper level signs';
+  const goods = new GoodsMesh();
+  const glow = (hex: number) => new THREE.MeshBasicMaterial({ color: hex, toneMapped: false });
+
   // --- The food court, along the west wall ---
-  // Iya Basira's amala spot: green counter, steel pots, the menu lit on the wall
-  counter(b, -17.6, -7, 3.4, 0x15803d);
-  for (let i = 0; i < 4; i++) b.cylinder(0x9ca3af, 0.24, 0.34, -17.6, 1.06, -8.3 + i * 0.85, { sides: 14, solid: false });
-  b.box(0xfacc15, 0.06, 1.2, 3.0, -W + 0.25, 2.0, -7, { glow: true, solid: false });
-  b.box(0x14532d, 0.08, 0.5, 3.2, -W + 0.24, 3.3, -7, { solid: false });
-  // Mallam Sani's suya: a glowing grill under a hood, sticks on it, a red counter
-  counter(b, -17.6, -1.5, 3.0, 0x7c2d12);
-  b.box(0xf97316, 0.7, 0.04, 1.8, -17.6, 1.08, -1.5, { glow: true, solid: false });
-  for (let i = 0; i < 9; i++) b.box(0x5b2410, 0.5, 0.04, 0.05, -17.6, 1.13, -2.3 + i * 0.2, { solid: false });
-  b.box(0x3f3f46, 1.0, 0.5, 2.2, -18.6, 2.9, -1.5, { solid: false });
-  // Ada's drinks bar: a blue counter, a glass-fronted fridge behind
-  counter(b, -17.6, 4.0, 3.0, 0x0e7490);
-  b.box(0x1e3a8a, 0.8, 2.0, 1.6, -19.4, 0, 4.0, { solid: true });
-  b.box(0x7dd3fc, 0.04, 1.6, 1.4, -18.98, 0.25, 4.0, { glow: true, solid: false });
-  for (let i = 0; i < 6; i++) b.box([0xdc2626, 0xf97316, 0x16a34a][i % 3], 0.12, 0.3, 0.12, -17.6, 1.06, 3.0 + i * 0.4, { solid: false });
+  // Iya Basira's amala spot: steel pots of amala, ewedu and gbegiri on the counter
+  counter(k, signs, b, -17.6, -7, 3.4, M.green, ['IYA BASIRA’S AMALA SPOT', 'Amala · Ewedu · Gbegiri · Ofada'], '#166534');
+  for (let i = 0; i < 4; i++) k.cyl(M.steel, 0.22, 0.25, 0.32, -17.6, 1.05, -8.3 + i * 0.85, 16).cyl(M.chrome, 0.23, 0.23, 0.02, -17.6, 1.37, -8.3 + i * 0.85, 16);
+  // Mallam Sani's suya: a glowing grill under a hood, sticks on it
+  counter(k, signs, b, -17.6, -1.5, 3.0, M.woodDark, ['MALLAM SANI’S SUYA', 'Beef · Chicken · Kilishi'], '#7c2d12');
+  k.box(glow(0xf97316), 0.7, 0.03, 1.8, -17.6, 1.06, -1.5);
+  for (let i = 0; i < 9; i++) k.box(M.woodDark, 0.5, 0.04, 0.05, -17.6, 1.1, -2.3 + i * 0.2);
+  k.box(M.metalDark, 1.0, 0.5, 2.2, -18.6, 2.9, -1.5);
+  // Ada's drinks bar: a glass-fronted fridge of cold drinks behind a blue counter
+  counter(k, signs, b, -17.6, 4.0, 3.0, M.metalDark, ['ADA’S DRINKS BAR', 'Chapman · Zobo · Small chops'], '#0e7490');
+  k.box(M.metalDark, 0.8, 2.1, 1.6, -19.4, 0, 6.3);
+  k.box(M.lamp, 0.02, 1.7, 1.4, -18.99, 0.25, 6.3);
+  stockRun(goods, [['cola', 'orange'], ['water', 'lemon'], ['malt', 'juice'], ['beer', 'stout']], [0.3, 0.72, 1.14, 1.56], [-19.2, 7.0], 1.4, Math.PI / 2, 0.3);
+  k.box(M.glass, 0.02, 1.9, 1.5, -18.98, 0.2, 6.3);
+  b.occupy(-19.8, -19.0, 5.5, 7.1, 2.1);
+  for (let i = 0; i < 6; i++) k.cyl([M.red, M.yellow, M.green][i % 3], 0.05, 0.05, 0.22, -17.6, 1.05, 3.0 + i * 0.4, 10);
 
-  // --- Tables for eating, with their chairs ---
+  // --- Tables and chairs: wood on chrome, padded chairs, every one to sit at ---
   for (const [x, z] of TABLES) {
-    b.box(0xf8fafc, 1.2, 0.76, 0.9, x, 0, z, { solid: true });
-    for (const side of [-1, 1]) {
-      b.box(0x7c2d12, 0.46, 0.45, 0.46, x, 0, z + side * 0.85, { solid: false });
-      b.box(0x7c2d12, 0.46, 0.5, 0.06, x, 0.45, z + side * 1.06, { solid: false });
-    }
+    diningTable(k, x, z, 1.8, 0.9, 0);
+    b.occupy(x - 0.9, x + 0.9, z - 0.45, z + 0.45, 0.76);
+  }
+  for (const s of SEATS.filter((s) => s.group.startsWith('table'))) {
+    diningChair(k, s, M.leatherTan);
+    b.occupy(s.x - 0.23, s.x + 0.23, s.z - 0.22, s.z + 0.22, 0.46);
   }
 
-  // --- Duty free, along the east wall: shelves of goods, a counter ---
+  // --- Naija Duty Free, along the east wall: lit wooden shelves of things made in Nigeria, a counter ---
   for (let z = -9.5; z <= 3.5; z += 2.6) {
-    b.box(0xe7e5e4, 0.6, 2.2, 2.4, W - 0.55, 0, z, { solid: true });
-    for (let r = 0; r < 3; r++) for (let i = 0; i < 5; i++) b.box([0x7c3aed, 0xdb2777, 0xf59e0b, 0x0f766e, 0x1e3a8a][(i + r) % 5], 0.3, 0.32, 0.3, W - 0.7, 0.45 + r * 0.6, z - 0.95 + i * 0.47, { solid: false });
+    k.box(M.wood, 0.6, 2.2, 2.4, W - 0.55, 0, z);
+    for (const y of [0.45, 0.95, 1.45]) k.box(M.woodDark, 0.55, 0.03, 2.4, W - 0.55, y - 0.03, z);
+    k.box(M.lamp, 0.02, 0.05, 2.3, W - 0.3, 2.05, z);
+    b.occupy(W - 0.85, W, z - 1.2, z + 1.2, 2.2);
   }
-  counter(b, 14.5, -3, 2.8, 0x1e293b);
-  b.box(0xfbbf24, 0.5, 0.25, 0.4, 14.5, 1.06, -3.8, { solid: false });
+  stockRun(goods, [['honey', 'groundnut', 'cocoa'], ['sweets', 'plantain', 'chinchin'], ['lotion', 'hairCream', 'pepper']], [0.45, 0.95, 1.45], [W - 0.62, 4.6], 15.2, -Math.PI / 2, 0.3);
+  k.soft(M.woodDark, 0.9, 1.0, 2.8, 14.5, 0, -3, 0.06);
+  k.box(M.floorDark, 1.0, 0.05, 2.9, 14.5, 1.0, -3);
+  k.box(M.yellow, 0.5, 0.22, 0.4, 14.5, 1.05, -3.8);
+  b.occupy(14.05, 14.95, -4.4, -1.6, 1.05);
+  const df = signMesh(['NAIJA DUTY FREE', 'Made in Nigeria · Gifts'], 4, 0.9, { bg: '#4c1d95', fg: '#ffffff', density: 120, accent: '#facc15' });
+  df.position.set(W - 0.12, 3.0, -3);
+  df.rotation.y = -Math.PI / 2;
+  signs.add(df);
 
   // --- The viewing gallery: benches facing the glass, the aircraft beyond ---
-  for (const x of [-1, 3.5, 8, 12.5]) {
-    b.box(0x374151, 2.6, 0.45, 0.6, x, 0, -L + 2.2, { solid: true });
-    b.box(0x111827, 2.6, 0.06, 0.62, x, 0.45, -L + 2.2, { solid: false });
+  for (const x of BENCHES) {
+    bench(k, x, -L + 2.2, 2.4, Math.PI, true);
+    b.occupy(x - 1.2, x + 1.2, -L + 2.15, -L + 2.5, 0.48);
   }
 
-  // --- Round the escalator well and the lift: a steel kerb, posts and a top rail (the glass is added after) ---
+  // --- Round the escalator well and the lift: a steel kerb and top rail (the glass is added after) ---
   const w = UPPER_WELL;
   for (const [x0, x1, z0, z1] of [[w.minX, w.minX, w.minZ, w.maxZ], [w.maxX, w.maxX, w.minZ, w.maxZ], [w.minX, w.maxX, w.maxZ, w.maxZ]] as const) {
     const len = Math.hypot(x1 - x0, z1 - z0);
     const alongX = x1 !== x0;
-    b.box(0x9ca3af, alongX ? len : 0.12, 0.12, alongX ? 0.12 : len, (x0 + x1) / 2, 0, (z0 + z1) / 2, { solid: false });
-    b.box(0x9ca3af, alongX ? len : 0.08, 0.06, alongX ? 0.08 : len, (x0 + x1) / 2, 1.05, (z0 + z1) / 2, { solid: false });
+    k.box(M.metalDark, alongX ? len : 0.12, 0.12, alongX ? 0.12 : len, (x0 + x1) / 2, 0, (z0 + z1) / 2);
+    k.box(M.steel, alongX ? len : 0.08, 0.05, alongX ? 0.08 : len, (x0 + x1) / 2, 1.05, (z0 + z1) / 2);
   }
-  for (let z = w.minZ; z <= w.maxZ + 0.01; z += 1.48) for (const x of [w.minX, w.maxX]) b.box(0x9ca3af, 0.06, 1.05, 0.06, x, 0, z, { solid: false });
-  // Plants by the glass, and a big flag
+  // Plants in the corners
   for (const [x, z] of [[-18.6, -10.8], [18.6, -10.8], [-18.6, 10.8], [18.6, 10.8]] as const) {
-    b.cylinder(0x78350f, 0.35, 0.6, x, 0, z, { sides: 12, solid: true });
-    b.dome(0x15803d, 0.6, x, 0.6, z, { solid: false });
+    planter(k, x, z, 1.1, 1.1);
+    b.occupy(x - 0.55, x + 0.55, z - 0.55, z + 0.55, 0.6);
   }
+  group.add(k.build('upper level furniture'), goods.build('upper level goods'), signs);
 }
 
 /** Hangs the glass, opens the floor for the escalators and the lift, and puts the aircraft outside */
@@ -245,6 +288,31 @@ function attach(room: PlaceInterior): void {
   });
   // The stairs by the escalators: the room's door at the front, down to the hall
   room.leadsTo = () => ({ id: HALL.id, spawnAt: hallAt(HALL_DOWN_OFF.x - 1.4, HALL_DOWN_OFF.z), spawnYaw: 0 });
+
+  relight(room, [[-10, 4.6, -2], [6, 4.6, -6], [14, 4.6, 4]]);
+  // Every free chair and bench can be sat on; travellers have the others
+  addSeats(room, FREE_SEATS.filter((s) => s.group.startsWith('table')), { name: '🪑 Food court table', description: 'Sit down at a table.' });
+  addSeats(room, FREE_SEATS.filter((s) => s.group.startsWith('gallery')), { name: '🪑 Gallery bench', description: 'Sit and watch the aircraft.' });
+  room.busySeats.push(...CROWD_SEATS.map((s) => [s.x, s.z] as [number, number]));
+  // Travellers about the level: eating, buying, watching the planes, coming up the escalator
+  const nodes: Array<[number, number]> = [[5.2, 1.4], [0, 1.4], [-15.5, 1.4], [-15.5, -8.5], [-15.5, 6], [-2.5, -9.6], [10, -9.6], [10, 1.4], [12.8, -3], [16.5, 6.5], [16.5, -9.5]];
+  const links: Array<[number, number]> = [[0, 1], [1, 2], [2, 3], [2, 4], [1, 5], [5, 6], [6, 7], [7, 0], [7, 8], [8, 9], [8, 10], [6, 10]];
+  const spots: CrowdSpot[] = [
+    { x: -16.3, z: -7.4, yaw: -Math.PI / 2, group: 'mall', stay: [5, 10], mode: 'talk' }, { x: -16.3, z: -1.2, yaw: -Math.PI / 2, group: 'mall', stay: [5, 10] },
+    { x: -16.3, z: 4.3, yaw: -Math.PI / 2, group: 'mall', stay: [4, 8] }, { x: 13.2, z: -2.6, yaw: Math.PI / 2, group: 'mall', stay: [5, 9], mode: 'talk' },
+    { x: W - 1.6, z: -6.9, yaw: Math.PI / 2, group: 'mall', stay: [5, 12] }, { x: W - 1.6, z: 1.0, yaw: Math.PI / 2, group: 'mall', stay: [5, 12] },
+    { x: 5.5, z: -L + 1.2, yaw: Math.PI, group: 'mall', stay: [8, 16] }, { x: 15.5, z: -L + 1.2, yaw: Math.PI, group: 'mall', stay: [8, 16] }, { x: -6, z: -L + 1.2, yaw: Math.PI, group: 'mall', stay: [8, 16] },
+  ];
+  const crowd = new MallCrowd({
+    nodes, links, doors: [0], spots,
+    seats: CROWD_SEATS.map((s) => ({ x: s.x, z: s.z, yaw: s.yaw, y: Math.max(0, s.top - 0.46) })),
+    shoppers: 0, walkers: 9,
+    playerAt: () => MallPlayer.at(),
+    origin: room.group.position,
+  });
+  g.add(crowd.group);
+  room.crowds.push(crowd);
+  room.ticks.push((delta) => crowd.update(delta));
 }
 
 function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
@@ -271,22 +339,13 @@ export const AIRPORT_UPPER: PlaceSpec = {
   room: { width: UPPER_ROOM.width, length: UPPER_ROOM.length, height: UPPER_ROOM.height, floor: 0xe8e4dc, wall: 0xf2efe9, finish: 'terrazzo' },
   sign: { text: 'UPPER LEVEL', sub: 'Food Court · Duty Free · Viewing Gallery', bg: '#0b7a43' },
   door: { name: 'Stairs down to the main hall', category: 'Airport · Upper level', description: 'Down to check-in, security, the gates and arrivals.' },
-  build: (b) => build(b),
+  build,
   attach,
   staff: [
     { name: 'Iya Basira', title: 'Amala Spot', at: [-18.7, -7], facing: Math.PI / 2, outfit: 0x15803d, gender: 'female', chef: true, says: 'Amala dey hot! Come and chop.' },
     { name: 'Mallam Sani', title: 'Suya', at: [-18.7, -1.5], facing: Math.PI / 2, outfit: 0xf8fafc, gender: 'male', cap: true, says: 'Fresh suya, hot from the fire.' },
     { name: 'Ada', title: 'Drinks bar', at: [-18.7, 4.0], facing: Math.PI / 2, outfit: 0x0e7490, gender: 'female', says: 'Chilled drinks and small chops!' },
     { name: 'Chiamaka', title: 'Naija Duty Free', at: [15.7, -3], facing: -Math.PI / 2, outfit: 0x7c3aed, gender: 'female', says: 'Made in Nigeria, the best gifts.' },
-  ],
-  regulars: [
-    { at: [-12.5, -8.35], facing: 0, outfit: 0x2563eb, sit: true },
-    { at: [-8.5, -2.65], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
-    { at: [-4.5, 3.65], facing: 0, outfit: 0x16a34a, sit: true },
-    { at: [-12.5, 5.35], facing: Math.PI, outfit: 0xf59e0b, sit: true, gender: 'female' },
-    { at: [3.5, -L + 2.2], facing: Math.PI, outfit: 0x0f766e, sit: true },
-    { at: [12.0, -L + 2.2], facing: Math.PI, outfit: 0xbe185d, sit: true, gender: 'female' },
-    { at: [9, -6], facing: -2.2, outfit: 0x111827 },
   ],
   stations: [
     { id: 'amala', name: '🍲 Iya Basira’s Amala Spot', at: [-17.6, -7], stand: [-16.3, -7], who: 'Iya Basira', role: 'Amala Spot · Upper Level', text: 'Ehen! Welcome, my customer! Amala dey hot, ewedu fresh, gbegiri sweet well well. Wetin I go serve you?', choices: [

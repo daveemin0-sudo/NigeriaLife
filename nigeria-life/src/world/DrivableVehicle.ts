@@ -77,7 +77,12 @@ export class DrivableVehicle {
   /** The pavements a driven car may not go onto at any speed, but at a way in for vehicles: set by the game (src/world/plan/Kerbs.ts) */
   public static kerbs: (() => KerbSet | null) | null = null;
   /** How high the ground is at (x, z) in the city shown (a pavement, a forecourt), so a car stands on it */
-  public static ground: ((x: number, z: number) => number) | null = null;
+  public static ground: ((x: number, z: number, y: number) => number) | null = null;
+  /**
+   * Raised ground (a ramp, a deck, a car park floor): whether the car at this height is up on it, and
+   * whether it may go on to a point there (the deck's edges hold it). Null where a city has none.
+   */
+  public static decks: { up(x: number, z: number, y: number): boolean; canGo(x: number, z: number, y: number): boolean } | null = null;
   private kerbToastAt = 0;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
@@ -1843,8 +1848,9 @@ export class DrivableVehicle {
     // The car's right, square to its heading (its nose along +z of its own frame)
     const rx = Math.cos(me.yaw) * w;
     const rz = -Math.sin(me.yaw) * w;
-    const right = ground(me.x + rx, me.z + rz);
-    const left = ground(me.x - rx, me.z - rz);
+    const y = this.mesh.position.y;
+    const right = ground(me.x + rx, me.z + rz, y);
+    const left = ground(me.x - rx, me.z - rz, y);
     // Straight onto it the first time (no rising out of the slab in view), smoothly after that
     const k = this.grounded ? Math.min(1, delta * 10) : 1;
     this.grounded = true;
@@ -2110,6 +2116,24 @@ export class DrivableVehicle {
    * slides along it. Its nose and tail are checked, not only its middle, so no part goes in.
    */
   private stepThroughWorld(stepX: number, stepZ: number, delta: number, slowedAlready: boolean): 'moved' | 'slid' | 'stopped' {
+    // Up on a ramp or a deck: what is on the street below does not touch it; the deck's edges do
+    {
+      const p = this.mesh.position;
+      const decks = DrivableVehicle.decks;
+      if (decks && decks.up(p.x, p.z, p.y)) {
+        const nose = Math.sign(stepX || 0) * 1.6;
+        const noseZ = Math.sign(stepZ || 0) * 1.6;
+        if (decks.canGo(p.x + stepX + nose * 0.5, p.z + stepZ + noseZ * 0.5, p.y)) {
+          p.x += stepX;
+          p.z += stepZ;
+          return 'moved';
+        }
+        if (decks.canGo(p.x + stepX + nose * 0.5, p.z, p.y) && Math.abs(stepX) > 1e-4) { p.x += stepX; return 'slid'; }
+        if (decks.canGo(p.x, p.z + stepZ + noseZ * 0.5, p.y) && Math.abs(stepZ) > 1e-4) { p.z += stepZ; return 'slid'; }
+        this.currentSpeed = 0;
+        return 'stopped';
+      }
+    }
     const pos = this.mesh.position;
     // The kerb at speed: the car does not leave the road; it slides along the kerb instead.
     // Only the middle of the car counts. A nose that clips the edge on a long phone frame used to

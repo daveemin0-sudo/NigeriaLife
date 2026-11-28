@@ -1,4 +1,6 @@
 import { AIRPORT_UPPER } from '../airport/AirportUpper';
+import { IKEJA_MALL } from '../mall/IkejaMall';
+import { IKEJA_MALL_UPPER } from '../mall/IkejaMallUpper';
 import type * as THREE from 'three';
 import type { Builder } from '../../world/kit/ArchKit';
 import { fineFridge, fineSofa } from '../../housing/FineFurniture';
@@ -866,19 +868,7 @@ const IKEJA: PlaceSpec[] = [
       buy('A power bank, 20,000 mAh', 25000, { id: 'powerbank', name: 'Power bank, 20,000 mAh', icon: '🔋', price: 25000, category: 'gadget', usable: false, description: 'For when NEPA takes light.' }, 'Charged and tested.'),
     ] },
   ], [{ at: [0, 0], facing: 2, outfit: 0x16a34a }, { at: [6, 1], facing: -1, outfit: 0xec4899, gender: 'female' }], [30, 20]),
-  venue('ikeja-city-mall', 'Ikeja City Mall', 'Ikeja · Alausa', 'Supermarket · Cinema · Food court', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
-    for (let i = 0; i < 5; i++) shelf(b, -10 + i * 3.4, -7, 2.8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf8fafc]);
-    for (const x of [-8, -5, -2]) counter(b, x, -1, 1.6, 0xdc2626);
-    counter(b, 8, -2, 4, 0xf97316); for (const [x, z] of [[6, 3], [9, 3], [6, 6], [9, 6]]) table(b, x, z, 0xf8fafc, 2, 0xf97316);
-    screen(b, -6, 8.7, 5, 1.6, 2.4, 0x7c3aed);
-  }, [{ name: 'Cashier Bola', title: 'Cashier', at: [-5, -2], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next!' }, { name: 'Food court', title: 'Grill', at: [8, -3], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Chicken and chips?' }], [
-    { id: 'groceries', name: '🛒 Supermarket', at: [-3, -7], stand: [-3, -5.8], who: 'Supermarket', role: 'Ikeja City Mall', text: 'Fill your trolley.', choices: [
-      buy('A week of groceries', 45000, item('groceries_week', 'A week of groceries', '🛒', 45000, 'food', true, 30), 'Rice, bread, eggs, milk, noodles, drinks: the trolley is full.'),
-      { label: 'Shop the shelves', note: 'Opens Shopping', open: 'app:shopping' },
-    ] },
-    { id: 'food', name: '🍗 Food court', at: [8, -2], stand: [8, -0.7], who: 'Grill', role: 'Food court', text: 'What will it be?', choices: [{ label: 'Chicken and chips with a Coke', price: 6000, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Hot chicken, crispy chips, cold Coke.' }] },
-    { id: 'cinema', name: '🎬 Cinema', at: [-6, 8.6], stand: [-6, 7.4], who: 'Box office', role: 'Cinema', text: 'Next show in ten minutes.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'The whole hall screamed at the twist.' }] },
-  ], [{ at: [6, 3.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-8, -4], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [26, 20]),
+  IKEJA_MALL,
   venue('allen-lounge', 'Allen Lounge', 'Ikeja · Allen Avenue', 'Afrobeats · Shisha · Small chops', '#db2777', 0x1c1917, 0x111827, (b) => {
     counter(b, 0, -6, 8, 0x111827, 0xdb2777); bottles(b, 0, -7.8, 8);
     for (const [x, z] of [[-6, 2], [-2, 4], [2, 4], [6, 2]]) { b.box(0x7c3aed, 2.2, 0.45, 0.9, x, 0, z).box(0x7c3aed, 2.2, 0.55, 0.2, x, 0.45, z + 0.4); b.cylinder(0x111827, 0.4, 0.5, x, 0, z - 1.1, { sides: 12 }).cylinder(0x22d3ee, 0.08, 0.6, x + 0.2, 0.5, z - 1.1, { glow: true }); }
@@ -1960,4 +1950,4 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   if (bank) bank.room.finish = 'grey_granite';
 }
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt'), AIRPORT_UPPER];
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt'), AIRPORT_UPPER, IKEJA_MALL_UPPER];

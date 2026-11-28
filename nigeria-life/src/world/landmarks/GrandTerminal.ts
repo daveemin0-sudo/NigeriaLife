@@ -219,7 +219,8 @@ export function buildGrandTerminal(b: Builder, rows: 1 | 2): void {
     for (const z of [T.front + 0.8, DECK.edge - 0.8]) b.box(0xd6d3d1, 0.8, h, 0.8, x, 0, z, { solid: true });
   }
   // Where it is too low to walk under, nobody does
-  b.occupy(DECK.rampFoot, DECK.rampFoot + run * 0.4, T.front, DECK.edge, rise * 0.4);
+  // (from where it is a metre up: below that the car is on the ramp itself, driving up it)
+  b.occupy(DECK.rampFoot + run / 6, DECK.rampFoot + run * 0.4, T.front, DECK.edge, rise * 0.4);
   // The road on to the ramp from the west
   b.ground(0x3f3f46, 4, deckD, DECK.rampFoot - 1.5, 0.022, deckZ);
 
@@ -258,29 +259,130 @@ export function buildGrandTerminal(b: Builder, rows: 1 | 2): void {
   b.box(0x334155, 1.6, 0.18, 0.5, -66.6, 7.5, lampZ, { solid: false });
   b.box(0xfff7d6, 1.4, 0.06, 0.4, -66.6, 7.45, lampZ, { solid: false, glow: true });
   // Palms along the big car park's ends
-  for (const x of [-151.6, -85.8]) for (const z of [-90, -80, -70]) palm(b, x, z, 6.4 + Math.abs((x * z) % 3) * 0.3, x + z);
+  for (const x of [-151.6, -85.8]) for (const z of [-90, -80]) palm(b, x, z, 6.4 + Math.abs((x * z) % 3) * 0.3, x + z);
 
-  // --- The multi-storey car park: four decks of bare concrete, open sides, cars on every level ---
+  // --- The multi-storey car park: four decks of bare concrete, open sides, cars on every level, ramps between ---
   const P = CAR_PARK;
+  const R = PARK_RAMPS;
   const pw = P.east - P.west;
-  const pd = P.south - P.north;
-  const px = (P.west + P.east) / 2;
   const pz = (P.north + P.south) / 2;
   for (let level = 1; level <= P.levels; level++) {
     const y = level * P.storey;
-    b.box(0xb8b5ae, pw, 0.35, pd, px, y - 0.35, pz, { solid: false });
+    // Each floor laid round the ramp coming up into it from below
+    const hole = level % 2 === 1 ? R.north : R.south;
+    for (const [x0, x1, z0, z1] of deckPieces(hole)) b.box(0xb8b5ae, x1 - x0, 0.35, z1 - z0, (x0 + x1) / 2, y - 0.35, (z0 + z1) / 2, { solid: false });
     // The upturned edge of each deck, so the decks read from the road
-    b.box(0xd6d3d1, pw + 0.2, 1.0, 0.25, px, y, P.north, { solid: false }).box(0xd6d3d1, pw + 0.2, 1.0, 0.25, px, y, P.south, { solid: false });
-    b.box(0xd6d3d1, 0.25, 1.0, pd, P.west, y, pz, { solid: false }).box(0xd6d3d1, 0.25, 1.0, pd, P.east, y, pz, { solid: false });
-    b.box(GREEN, pw + 0.24, 0.12, 0.28, px, y + 0.7, P.south, { solid: false });
+    b.box(0xd6d3d1, pw + 0.2, 1.0, 0.25, (P.west + P.east) / 2, y, P.north, { solid: false }).box(0xd6d3d1, pw + 0.2, 1.0, 0.25, (P.west + P.east) / 2, y, P.south, { solid: false });
+    b.box(0xd6d3d1, 0.25, 1.0, P.south - P.north, P.west, y, pz, { solid: false }).box(0xd6d3d1, 0.25, 1.0, P.south - P.north, P.east, y, pz, { solid: false });
+    b.box(GREEN, pw + 0.24, 0.12, 0.28, (P.west + P.east) / 2, y + 0.7, P.south, { solid: false });
+    // Bay lines painted on the deck
+    for (let x = P.west + 1.3; x <= P.east - 5; x += 2.6) for (const z of [R.rowA, R.rowB]) b.box(WHITE, 0.1, 0.02, 4.4, x, y + 0.005, z, { solid: false });
   }
-  for (let x = P.west + 0.4; x <= P.east; x += 6.4) for (const z of [P.north + 0.4, pz, P.south - 0.4]) b.box(0xc4c0b8, 0.5, P.levels * P.storey + 1, 0.5, x, 0, z, { solid: false });
+  // The ramps between the floors: up from the ground in the north lane, the next one back the other way beside it
+  for (let level = 0; level < P.levels; level++) {
+    const lane = level % 2 === 0 ? R.north : R.south;
+    const y0 = level * P.storey;
+    const climb = P.storey;
+    const run = R.east - R.west;
+    const slope = Math.atan2(climb, run);
+    const along = Math.hypot(run, climb);
+    const lz = (lane.minZ + lane.maxZ) / 2;
+    const width = lane.maxZ - lane.minZ;
+    // Rising west in the north lane, east in the south lane
+    const roll = level % 2 === 0 ? -slope : slope;
+    b.box(0xa8a29e, along, 0.3, width, (R.west + R.east) / 2, y0 + climb / 2 - 0.3, lz, { roll, solid: false });
+    b.box(0x52525b, along, 0.03, width - 0.4, (R.west + R.east) / 2, y0 + climb / 2 + 0.005, lz, { roll, solid: false });
+    for (const z of [lane.minZ + 0.1, lane.maxZ - 0.1]) b.box(0xd6d3d1, along, 0.6, 0.15, (R.west + R.east) / 2, y0 + climb / 2, z, { roll, solid: false });
+  }
+  // Columns, clear of the ramps
+  for (let x = P.west + 0.4; x <= P.east; x += 6.4) {
+    for (const z of [P.north + 0.4, R.columns, P.south - 0.4]) {
+      if (z === P.north + 0.4 && x > R.west - 0.5 && x < R.east + 0.5) continue;
+      b.box(0xc4c0b8, 0.5, P.levels * P.storey + 1, 0.5, x, 0, z, { solid: false });
+      b.occupy(x - 0.3, x + 0.3, z - 0.3, z + 0.3, 3);
+    }
+  }
   // The lift and stair core at its north-east corner, the big P on it
   b.box(0xd6d3d1, 4.2, P.levels * P.storey + 3, 4.2, P.east - 2.4, 0, P.north + 2.4, { solid: false });
   b.box(0x1d4ed8, 2.8, 2.8, 0.1, P.east - 2.4, P.levels * P.storey - 0.4, P.north - 0.06, { solid: false, glow: true });
-  // Its way in, from the car park's aisle
-  b.ground(0x3f3f46, 6, 4, P.east + 2, 0.022, P.south - 6);
-  b.occupy(P.west, P.east, P.north, P.south, P.levels * P.storey + 1);
+  b.occupy(P.east - 4.5, P.east - 0.3, P.north, P.north + 4.5, 4);
+  // Under the ramps' high ends nobody drives in at street level (up the ramp from its foot, they do)
+  b.occupy(R.west, R.east - 3, R.north.minZ, R.north.maxZ, 1.5);
+  b.occupy(R.west + 0.5, R.east, R.south.minZ, R.south.maxZ, 1.5);
+  // Its ground floor, open both ends: in from the car park's aisle in the east, out to the ramp road in the west
+  b.ground(0x3f3f46, pw, 5, (P.west + P.east) / 2, 0.021, R.aisle);
+  for (const x of [P.east + 2, P.west - 1]) b.ground(0x3f3f46, x > P.east ? 4.4 : 2.4, 5, x, 0.022, R.aisle);
+  for (let x = P.west + 3; x < P.east - 2; x += 5) b.ground(WHITE, 1.6, 0.14, x, 0.03, R.aisle);
+  b.ground(0x3f3f46, 6, 5, P.east + 2, 0.022, R.aisle + 2.5);
+
+  // --- The road round the west side, from the car park up to the foot of the departures ramp ---
+  const W0 = WEST_ROAD;
+  b.ground(0x3f3f46, W0.east - W0.west, W0.south - W0.north, (W0.west + W0.east) / 2, 0.022, (W0.north + W0.south) / 2);
+  b.ground(0xbdb5a8, 1.2, W0.south - W0.north, W0.west - 0.6, 0.02, (W0.north + W0.south) / 2);
+  for (let z = W0.north + 3; z < W0.south - 2; z += 6) b.ground(WHITE, 0.14, 2.4, (W0.west + W0.east) / 2, 0.03, z);
+  // Ways in from the approach road to the big car park, across the pavement, at both its aisles
+  for (const z of [-85, -71]) b.ground(0x3f3f46, 5, 4.6, -84.6, 0.025, z);
+}
+
+/** The multi-storey's ramps: their two lanes along its north side (rising west, then east), its parking rows, its ground floor's aisle */
+export const PARK_RAMPS = {
+  west: -177,
+  east: -165,
+  north: { minZ: -91.6, maxZ: -87.6 },
+  south: { minZ: -87.4, maxZ: -83.4 },
+  /** The column line between the ramps and the bays */
+  columns: -83.0,
+  rowA: -80.6,
+  rowB: -71.0,
+  /** The drive through the ground floor, and every floor's aisle */
+  aisle: -75.8,
+};
+
+/** The road round the west of the car park to the ramp's foot (x and z as drawn) */
+export const WEST_ROAD = { west: -189, east: -181.2, north: -102.3, south: -73.3 };
+
+/** A car park floor as pieces round the hole the ramp below comes up through */
+function deckPieces(hole: { minZ: number; maxZ: number }): Array<[number, number, number, number]> {
+  const P = CAR_PARK;
+  const R = PARK_RAMPS;
+  const w = P.west + 0.15;
+  const e = P.east - 0.15;
+  const n = P.north + 0.15;
+  const s = P.south - 0.15;
+  const pieces: Array<[number, number, number, number]> = [
+    [w, e, hole.maxZ, s],
+    [w, e, n, hole.minZ],
+    [w, R.west, hole.minZ, hole.maxZ],
+    [R.east, e, hole.minZ, hole.maxZ],
+  ];
+  return pieces.filter(([x0, x1, z0, z1]) => x1 - x0 > 0.05 && z1 - z0 > 0.05);
+}
+
+/** A surface a car drives on above the street (as drawn) */
+export interface RaisedSurface { minX: number; maxX: number; minZ: number; maxZ: number; y0: number; y1: number; rises?: '+x' | '-x' }
+
+/**
+ * Every surface a car drives on above the street (as drawn): the departures ramp and deck, the car
+ * park's floors and the ramps between them. The airport puts them in its city.
+ */
+export function raisedSurfaces(): RaisedSurface[] {
+  const T = TERMINAL;
+  const P = CAR_PARK;
+  const R = PARK_RAMPS;
+  const out: RaisedSurface[] = [
+    // Up the ramp from the west and along the deck in front of the departures doors
+    { minX: DECK.rampFoot, maxX: T.west, minZ: T.front + 0.35, maxZ: DECK.edge - 0.35, y0: 0, y1: DECK.top, rises: '+x' },
+    { minX: T.west - 0.2, maxX: T.east - 0.4, minZ: T.front + 0.2, maxZ: DECK.edge - 0.35, y0: DECK.top, y1: DECK.top },
+  ];
+  for (let level = 1; level <= P.levels; level++) {
+    const y = level * P.storey;
+    for (const [x0, x1, z0, z1] of deckPieces(level % 2 === 1 ? R.north : R.south)) out.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, y0: y, y1: y });
+  }
+  for (let level = 0; level < P.levels; level++) {
+    const lane = level % 2 === 0 ? R.north : R.south;
+    out.push({ minX: R.west, maxX: R.east, minZ: lane.minZ + 0.25, maxZ: lane.maxZ - 0.25, y0: level * P.storey, y1: (level + 1) * P.storey, rises: level % 2 === 0 ? '-x' : '+x' });
+  }
+  return out;
 }
 
 /** The doors at street level, under the deck, where people walk in (x as drawn) */
@@ -314,8 +416,8 @@ function parked(rows: 1 | 2): Parked[] {
   // On every deck of the multi-storey, the ground floor too, seen through its open sides
   const P = CAR_PARK;
   for (let level = 0; level <= P.levels; level++) {
-    for (let x = P.west + 2.2; x <= P.east - 5; x += 2.6) {
-      for (const [z, yaw] of [[P.north + 3, 0], [P.south - 3, Math.PI]] as const) if (roll(10) >= 4) car(x, z, yaw, level * P.storey);
+    for (let x = P.west + 2.6; x <= P.east - 5.2; x += 2.6) {
+      for (const [z, yaw] of [[PARK_RAMPS.rowA, 0], [PARK_RAMPS.rowB, Math.PI]] as const) if (roll(10) >= 4) car(x, z, yaw, level * P.storey);
     }
   }
   // Picking up at the arrivals kerb, under the deck
@@ -330,6 +432,15 @@ function parked(rows: 1 | 2): Parked[] {
   return out;
 }
 
+/** The cars parked up on a deck (the car park's floors, the departures drop-off), as drawn, with the deck's height */
+export function raisedParked(rows: 1 | 2): Array<{ minX: number; maxX: number; minZ: number; maxZ: number; y: number }> {
+  return parked(rows).filter((p) => p.y).map((p) => {
+    const across = Math.abs(Math.sin(p.yaw)) > 0.5;
+    const y = p.y ?? 0;
+    return across ? { minX: p.x - 2.3, maxX: p.x + 2.3, minZ: p.z - 0.9, maxZ: p.z + 0.9, y } : { minX: p.x - 0.9, maxX: p.x + 0.9, minZ: p.z - 2.3, maxZ: p.z + 2.3, y };
+  });
+}
+
 /** How many rows of bays fit between the kerb and an approach road along this z (as drawn) */
 export function parkRows(approachZ: number | undefined): 1 | 2 {
   return approachZ === undefined || approachZ >= -72 ? 2 : 1;
@@ -337,7 +448,7 @@ export function parkRows(approachZ: number | undefined): 1 | 2 {
 
 /** The parked cars, for anything that keeps people and cars out of them: their footprints, as drawn */
 export function parkedFootprints(rows: 1 | 2): Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> {
-  return parked(rows).filter((p) => !p.y && !(p.x > CAR_PARK.west - 1 && p.x < CAR_PARK.east + 1 && p.z > CAR_PARK.north - 1 && p.z < CAR_PARK.south + 1)).map((p) => {
+  return parked(rows).filter((p) => !p.y).map((p) => {
     const across = Math.abs(Math.sin(p.yaw)) > 0.5;
     return across ? { minX: p.x - 2.35, maxX: p.x + 2.35, minZ: p.z - 0.95, maxZ: p.z + 0.95 } : { minX: p.x - 0.95, maxX: p.x + 0.95, minZ: p.z - 2.35, maxZ: p.z + 2.35 };
   });

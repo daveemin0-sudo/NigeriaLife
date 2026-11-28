@@ -137,8 +137,8 @@ export interface PlaceSpec {
   door?: { name: string; category: string; description: string };
 }
 
-/** Every place's room by its key, as soon as it is made (before it is built): for the ways between rooms */
-export const placeRooms = new Map<string, PlaceInterior>();
+import { placeRooms } from './PlaceRooms';
+export { placeRooms };
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
 
@@ -246,18 +246,23 @@ export class PlaceInterior {
   /** Rebuilds the room NavGrid from Builder footprints plus anything registered with block(). */
   public rebuildNav(footprints: ReadonlyArray<Footprint>): void {
     const { width, length } = this.spec.room;
+    const all = [...footprints, ...this.extraFootprints];
+    // A spot inside something solid (a counter, a shelf) is never cleared: that cut holes to walk through
+    const inSolid = (x: number, z: number) => all.some((f) => f.height > 0.4 && x > f.minX && x < f.maxX && z > f.minZ && z < f.maxZ);
     const clearSpots: Array<{ x: number; z: number; radius?: number }> = [
       { x: 0, z: length / 2 - 1.6, radius: 0.7 },
       { x: 0, z: length / 2 - 1, radius: 0.55 },
       ...this.spec.stations.map((st) => ({ x: st.stand[0], z: st.stand[1], radius: 0.5 })),
-      ...this.spec.staff.map((s) => ({ x: s.at[0] + Math.sin(s.facing) * 1.3, z: s.at[1] + Math.cos(s.facing) * 1.3, radius: 0.4 })),
+      ...this.spec.staff.map((s) => ({ x: s.at[0] + Math.sin(s.facing) * 1.3, z: s.at[1] + Math.cos(s.facing) * 1.3, radius: 0.4 })).filter((c) => !inSolid(c.x, c.z)),
       ...this.interactiveList
         .filter((o) => o.interactionPoint)
-        .map((o) => ({ x: o.interactionPoint.x - this.group.position.x, z: o.interactionPoint.z - this.group.position.z, radius: 0.45 })),
+        .map((o) => ({ x: o.interactionPoint.x - this.group.position.x, z: o.interactionPoint.z - this.group.position.z, radius: 0.45 }))
+        .filter((c) => !inSolid(c.x, c.z)),
     ];
-    const all = [...footprints, ...this.extraFootprints];
     const built = buildRoomNav(this.group.position, width, length, all, clearSpots);
     this.nav = built.nav;
+    // Whoever is spoken to across a counter is walked up to from the clear floor in front of it
+    for (const o of this.interactiveList) if (o.interactionPoint && !built.nav.isFree(o.interactionPoint.x, o.interactionPoint.z)) o.interactionPoint.copy(built.nav.closestFree(o.interactionPoint));
     this.solidCount = built.solids;
   }
 
@@ -821,7 +826,7 @@ export class PlaceInterior {
 
   /** A free place at a table, nearest a point: where to sit, which way, where to come from, where the plate goes */
   private freeSeat(near: [number, number]): { key: string; seat: [number, number]; behind: [number, number]; yaw: number; plate: [number, number]; height: number; server: [number, number] } | null {
-    const taken = [...(this.spec.regulars ?? []).map((r) => r.at), ...this.spec.staff.map((st) => st.at)];
+    const taken = [...(this.spec.regulars ?? []).map((r) => r.at), ...this.spec.staff.map((st) => st.at), ...this.busySeats];
     let best: ReturnType<PlaceInterior['freeSeat']> = null;
     let bestD = Infinity;
     for (const t of this.tables) {
@@ -1010,6 +1015,22 @@ export class PlaceInterior {
 
   /** Things in the room that move or change as the game goes on (a show on its stage), each frame */
   public readonly ticks: Array<(delta: number) => void> = [];
+  /** Seats someone of the room's crowd is sitting on: never offered to the player */
+  public readonly busySeats: Array<[number, number]> = [];
+  /** Crowds the room keeps (a mall's shoppers): their bodies are solid to the player */
+  public readonly crowds: Array<{ peopleNear(x: number, z: number, range: number, out: Array<{ x: number; z: number; r: number }>): void }> = [];
+
+  /** Everyone in the room's crowds near a point of the world, as bodies on the floor (world coordinates) */
+  public peopleNear(x: number, z: number, range: number, out: Array<{ x: number; z: number; r: number }>): void {
+    if (!this.crowds.length) return;
+    const o = this.group.position;
+    const from = out.length;
+    for (const c of this.crowds) c.peopleNear(x - o.x, z - o.z, range, out);
+    for (let i = from; i < out.length; i++) {
+      out[i].x += o.x;
+      out[i].z += o.z;
+    }
+  }
   /** Tables to sit at and eat, as built */
   private tables: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
   /** The one who carries a meal to the table: comes out when there is something to bring */

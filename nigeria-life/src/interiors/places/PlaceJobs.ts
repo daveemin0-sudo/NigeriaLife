@@ -113,9 +113,9 @@ export const PLACE_WORK: Record<string, WorkSpec[]> = {
     'The supermarket pays by the shift',
     'Till three is yours. Smile at the customers.',
     [
-      task([-8, 0.1], [-8, -1], 'reach', 3, 'Beep, beep, beep: a whole trolley through the till.'),
-      task([-8, 0.1], [-8, -1], 'carry', 2, 'Bagged, and the customer pays: ₦38,400.'),
-      task([-6.6, -5.8], [-6.6, -7], 'reach', 3, 'Cartons of noodles stacked on the shelf, labels to the front.'),
+      task([-19, 3.9], [-18.15, 3.9], 'reach', 3, 'Beep, beep, beep: a whole trolley through the till.'),
+      task([-19, 4.6], [-18.15, 4.6], 'carry', 2, 'Bagged, and the customer pays: ₦38,400.'),
+      task([-20.95, -8], [-19.85, -8], 'reach', 3, 'Cartons of noodles stacked on the shelf, labels to the front.'),
     ]),
   ],
   'mmia-terminal': [

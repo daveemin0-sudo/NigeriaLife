@@ -1,4 +1,6 @@
 import { showWelcomeBanner } from '../ui/WelcomeBanner';
+import { Decks } from '../world/plan/Decks';
+import { MallPlayer } from '../interiors/mall/IkejaMall';
 import { Talk } from '../interactions/Talk';
 import { MusicPlayer } from '../audio/MusicPlayer';
 import { tickWater } from '../graphics/Water';
@@ -437,6 +439,8 @@ export class Game {
     // The terminal's departure boards keep the game's time
     AirportInterior.hourNow = () => this.world.skyEnvironment.currentHour;
     AirportInterior.playerAt = () => this.player?.position ?? null;
+    MallPlayer.at = () => this.player?.position ?? null;
+    Talk.cardOn = () => this.hud?.currentActiveObject?.id ?? null;
     // People who greet the player who walks up to them: where the player is, a card to speak with, sir or ma
     Talk.playerAt = () => this.player?.position ?? null;
     Talk.withHost = (run) => this.hud?.withPlaceHost(run);
@@ -2371,7 +2375,15 @@ export class Game {
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.pavements = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
     // Cars and bikes stand on Lagos's pavements and forecourts too (the other cities' ground is level)
-    DrivableVehicle.ground = (x, z) => (this.world.cityManager.currentCityId === 'lagos' ? groundAt(x, z) : 0);
+    DrivableVehicle.ground = (x, z, y) => {
+      const city = this.world.cityManager.currentCityId;
+      return Math.max(city === 'lagos' ? groundAt(x, z) : 0, Decks.surfaceAt(city, x, z, y));
+    };
+    // Ramps and decks (the airport's departures road, the car parks' floors): driven up, held on
+    DrivableVehicle.decks = {
+      up: (x, z, y) => Decks.up(this.world.cityManager.currentCityId, x, z, y),
+      canGo: (x, z, y) => Decks.canGo(this.world.cityManager.currentCityId, x, z, y),
+    };
     // People and vehicles take up room: nobody walks or drives through them
     const onLagosStreet = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
     const inTheStreet = () => !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;

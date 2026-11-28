@@ -17,6 +17,10 @@ export const Talk = {
   hour: (): number => 12,
   /** A cab from where the player stands to a point in this city, paid when it comes (set by the game) */
   rideTo: null as ((point: THREE.Vector3, name: string, fare: number) => void) | null,
+  /** The card on screen now (the thing the player has walked up to use), by its id (set by the game) */
+  cardOn: (): string | null => null,
+  /** When the player last used something (performance.now()): nobody talks over it */
+  actedAt: 0,
 };
 
 export const sir = (): string => (Talk.woman() ? 'ma' : 'sir');
@@ -84,7 +88,11 @@ export class Greeters {
     const director = InteractionDirector.get();
     const player = director.player;
     // Not while a card is open, or while the player is walking somewhere, sitting, eating, praying
-    const busy = !!document.getElementById('game-dialogue-overlay') || !!player?.busy || !!player?.hold || !!player?.scripted;
+    const busy = !!document.getElementById('game-dialogue-overlay') || !!player?.busy || !!player?.hold || !!player?.scripted || performance.now() - Talk.actedAt < 2500;
+    // Come up to use something else (its card is showing): the person beside it waits to be spoken to
+    // (a person's own card, or a counter's, is no reason to wait: a gate, a seat or a machine is)
+    const shown = Talk.cardOn();
+    const card = shown && !shown.startsWith('interior_npc_') && !(shown.startsWith('place_') && !shown.includes('_sit_')) ? shown : null;
     // Greeted when they stop there, not when they walk past
     const speed = this.seen && delta > 0 ? Math.hypot(at.x - this.last.x, at.z - this.last.z) / delta : 0;
     this.last.copy(at);
@@ -99,7 +107,7 @@ export class Greeters {
       }
       // Already talking or being served here: not greeted again until they have gone away and come back
       if (d <= spot.radius && busy) this.armed.set(spot.id, false);
-      if (d > spot.radius || busy || passing || this.armed.get(spot.id) === false || (spot.when && !spot.when())) {
+      if (d > spot.radius || busy || passing || (card && card !== spot.id) || this.armed.get(spot.id) === false || (spot.when && !spot.when())) {
         this.dwell.set(spot.id, 0);
         continue;
       }

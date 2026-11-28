@@ -1,3 +1,4 @@
+import { Talk } from '../interactions/Talk';
 import { Classes } from '../life/Classes';
 import * as THREE from 'three';
 import type { InteractiveObject, InteractionTarget, World } from '../world/World';
@@ -2546,6 +2547,7 @@ export class HUD {
     const action = PlaceActions.get(id);
     if (!action || !this.player) return false;
     this.hideInteractionCard();
+    Talk.actedAt = performance.now();
     action.run(this.placeHost());
     return true;
   }
@@ -2571,6 +2573,7 @@ export class HUD {
     if (ownAction && this.player) {
       // Acted out where it happens: the card goes and the player walks to it
       this.hideInteractionCard();
+      Talk.actedAt = performance.now();
       ownAction.run(this.placeHost());
       return;
     }

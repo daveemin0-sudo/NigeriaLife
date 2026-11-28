@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { buildGrandTerminal, grandTerminalExtras, parkedFootprints, parkRows, TERMINAL } from './GrandTerminal';
+import { buildGrandTerminal, grandTerminalExtras, parkedFootprints, parkRows, raisedParked, raisedSurfaces, TERMINAL } from './GrandTerminal';
+import { Decks } from '../plan/Decks';
 import { flyingAirliner, parkedAirliners } from './OutdoorAirliner';
 import { LIVERIES } from '../../interiors/airport/Airliner';
 import { Builder } from '../kit/ArchKit';
@@ -279,6 +280,10 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const rows = parkRows(options.approach?.alongZ);
   buildGrandTerminal(b, rows);
   for (const f of parkedFootprints(rows)) b.occupy(f.minX, f.maxX, f.minZ, f.maxZ, 1.5);
+  // The ramp up to departures, the deck, the car park's floors: driven on, in this city
+  Decks.clear(options.city);
+  for (const d of raisedSurfaces()) Decks.add({ ...d, city: options.city, minX: d.minX + move.x, maxX: d.maxX + move.x, minZ: d.minZ + move.z, maxZ: d.maxZ + move.z });
+  for (const c of raisedParked(rows)) Decks.block(options.city, c.minX + move.x, c.maxX + move.x, c.minZ + move.z, c.maxZ + move.z, c.y);
   // The door onto the apron, by the stand the flight works from
   b.box(0x0f172a, 3.2, 2.8, 0.2, APRON_DOOR_X, 0, TERMINAL.back - 0.18, { solid: false });
   b.box(0x0b7a43, 3.8, 0.4, 0.3, APRON_DOOR_X, 2.8, TERMINAL.back - 0.2, { solid: false });
@@ -580,7 +585,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       flight.clock = Math.floor(flight.clock / FLIGHT_SECONDS) * FLIGHT_SECONDS + ARRIVED_FROM + 0.05;
       landmark.update?.(0, 12);
     },
-    zone: { minX: -183 + move.x, maxX: -60 + move.x, minZ: -169 + move.z, maxZ: -66 + move.z },
+    zone: { minX: -190 + move.x, maxX: -60 + move.x, minZ: -169 + move.z, maxZ: -66 + move.z },
     group,
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [
