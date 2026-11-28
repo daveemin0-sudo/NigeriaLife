@@ -1524,8 +1524,10 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
   .fs-point { animation: none; outline: 2px solid #0e7a4e; }
 }
 @media (max-width: 700px) and (orientation: portrait) {
+  /* Clear the tip HUD stack (pill + quest/place + today/chat), using --nl-inset-top
+     so Dynamic Island / phone-preview floor is honoured the same way as those rows. */
   #nl-first-steps {
-    top: calc(env(safe-area-inset-top, 0px) + 150px);
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 176px);
     left: 8px;
     right: 56px;
     transform: none;
@@ -1551,9 +1553,9 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     min-height: 36px;
     padding: 8px 14px;
   }
-  /* The toasts go under it */
+  /* The toasts go under the (taller) guide line */
   html body:not(.ui-modal-open):not(.lx-title):has(#nl-first-steps) #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 236px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 286px) !important;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
