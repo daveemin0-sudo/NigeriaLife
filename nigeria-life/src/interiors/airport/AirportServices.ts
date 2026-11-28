@@ -28,6 +28,15 @@ export interface AirportSeat {
   table?: [number, number];
 }
 
+/**
+ * Where a sitter's body is put, from the middle of the seat: forward, so the hips are on the front of the
+ * cushion and the back against the backrest (a deep armchair further), never inside the backrest; and how
+ * high, so the feet are flat on the floor and the hips on the cushion. Travellers and the player alike.
+ */
+export const SEAT_FORWARD: Record<AirportSeat['kind'], number> = { gate: 0.17, cafe: 0.17, lounge: 0.25 };
+/** How far the seated body is lifted for a cushion this high (the sitting clip is made for a 0.45 m seat) */
+export const seatLift = (top: number): number => Math.max(0, top - 0.45);
+
 interface MenuItem {
   name: string;
   price: number;
@@ -121,8 +130,10 @@ export class AirportServices {
     if (!this.director.reserve(seat.id, player)) return false;
     const fx = Math.sin(seat.yaw), fz = Math.cos(seat.yaw);
     const front = this.world(seat.x + fx * 0.6, seat.z + fz * 0.6);
-    const on = this.world(seat.x - fx * 0.04, seat.z - fz * 0.04);
-    const pose = { legs: 'sit' as const, arms: 'rest' as const, height: seat.top };
+    const f = SEAT_FORWARD[seat.kind];
+    const on = this.world(seat.x + fx * f, seat.z + fz * f);
+    // (the pose lifts the body by height + 0.2 - 0.48: this height lifts it by seatLift)
+    const pose = { legs: 'sit' as const, arms: 'rest' as const, height: seatLift(seat.top) + 0.28 };
     const sit = new Sequence(`sit (${seat.kind})`, [player]).add(
       steps.walk(player, front, { nav: this.nav, ifStuck: 'snap' }),
       steps.face(player, seat.yaw),
@@ -328,6 +339,71 @@ export class AirportServices {
     if (!result.ok && result.reason) host.say(result.reason, 'info');
   }
 
+  // --- The prayer rooms --------------------------------------------------------------------------
+  // Beside the lounge, by the apron windows: a mosque (its ablution basin outside, its mihrab in the
+  // back wall, mats in rows) and a chapel (pews, an altar and a cross). Doors in the front wall.
+
+  /** Ablution at the basin, in through the door, two rak'ahs on the mat facing the mihrab, du'a, and out */
+  private mosque(host: PlaceHost): void {
+    const actor = host.actor;
+    if (this.director.interrupt(actor) === 'locked') return;
+    const back = Math.PI;
+    const salah = new Sequence('pray in the mosque', [actor]).locked().add(
+      steps.walk(actor, this.world(-11.9, -13.6), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(actor, back),
+      steps.animate(actor, { legs: 'stand', arms: 'reach' }, 3.5, [{ at: 0.9, run: () => { this.backend.modifyNeed('hygiene', 3); } }]),
+      steps.walk(actor, this.world(-9.3, -14.0), { nav: this.nav, ifStuck: 'snap' }),
+      steps.walk(actor, this.world(-9.3, -15.4), { nav: this.nav, ifStuck: 'snap' }),
+      steps.walk(actor, this.world(-11.0, -18.3), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(actor, back),
+      steps.animate(actor, { legs: 'stand', arms: 'takbir' }, 1.6),
+      steps.animate(actor, { legs: 'stand', arms: 'pray' }, 4),
+      steps.animate(actor, { legs: 'bow', arms: 'rest' }, 2.4),
+      steps.animate(actor, { legs: 'stand', arms: 'rest' }, 1.2),
+      steps.animate(actor, { legs: 'prostrate', arms: 'rest' }, 2.4),
+      steps.animate(actor, { legs: 'kneel', arms: 'rest' }, 1.4),
+      steps.animate(actor, { legs: 'prostrate', arms: 'rest' }, 2.4),
+      steps.animate(actor, { legs: 'kneel', arms: 'rest' }, 2.6),
+      steps.animate(actor, { legs: 'kneel', arms: 'palms' }, 3.4, [{
+        at: 0.9, run: () => {
+          this.backend.modifyNeed('fun', 8);
+          this.backend.modifyNeed('social', 6);
+          this.backend.modifyNeed('energy', 4);
+          host.say('🕌 Two rak‘ahs, and a du‘a for a safe journey. You feel at peace.', 'success');
+        },
+      }]),
+      steps.animate(actor, { legs: 'stand', arms: 'rest' }, 0.5),
+      steps.walk(actor, this.world(-9.3, -15.4), { nav: this.nav, ifStuck: 'snap' }),
+      steps.walk(actor, this.world(-9.3, -13.4), { nav: this.nav, ifStuck: 'snap' }),
+    );
+    salah.onEnd(() => { actor.pose = { legs: 'stand', arms: 'rest' }; });
+    this.director.run(salah);
+  }
+
+  /** In through the chapel door, kneel at the altar rail and pray, and out */
+  private chapel(host: PlaceHost): void {
+    const actor = host.actor;
+    if (this.director.interrupt(actor) === 'locked') return;
+    const pray = new Sequence('pray in the chapel', [actor]).locked().add(
+      steps.walk(actor, this.world(-6.0, -15.3), { nav: this.nav, ifStuck: 'snap' }),
+      steps.walk(actor, this.world(-6.0, -18.35), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(actor, Math.PI),
+      steps.animate(actor, { legs: 'kneel', arms: 'palms' }, 7, [{
+        at: 0.9, run: () => {
+          this.backend.modifyNeed('fun', 8);
+          this.backend.modifyNeed('social', 6);
+          this.backend.modifyNeed('energy', 4);
+          host.say('🙏 A quiet prayer for journey mercies. You feel at peace.', 'success');
+        },
+      }]),
+      steps.animate(actor, { legs: 'stand', arms: 'rest' }, 0.5),
+      steps.walk(actor, this.world(-6.0, -15.3), { nav: this.nav, ifStuck: 'snap' }),
+      steps.walk(actor, this.world(-6.0, -13.4), { nav: this.nav, ifStuck: 'snap' }),
+    );
+    pray.onEnd(() => { actor.pose = { legs: 'stand', arms: 'rest' }; });
+    this.director.run(pray);
+  }
+
   /**
    * The cards to walk up to, and what pressing each one does: a sit-down card at every row of gate
    * seats and every café table, the café counter, the shop's till, the lounge desk, the toilets.
@@ -376,5 +452,9 @@ export class AirportServices {
     PlaceActions.register('airport_vip_lounge', { label: () => '🥂 Pay into the lounge (₦40,000)', run: (host) => this.lounge(host) });
     card('airport_toilets', 'Toilets', 'Facilities', 'Ladies and gents, airside.', -26.8, -1.0);
     PlaceActions.register('airport_toilets', { label: () => '🚻 Use the toilets', run: (host) => this.toilets(host, toiletDoor) });
+    card('airport_mosque', 'Mosque', 'Prayer rooms', 'Ablution, then prayer on the mats facing the mihrab.', -9.3, -13.8);
+    PlaceActions.register('airport_mosque', { label: () => '🕌 Pray in the mosque', run: (host) => this.mosque(host) });
+    card('airport_chapel', 'Chapel', 'Prayer rooms', 'A quiet chapel: pews, an altar and a cross.', -6.0, -13.8);
+    PlaceActions.register('airport_chapel', { label: () => '🙏 Pray in the chapel', run: (host) => this.chapel(host) });
   }
 }

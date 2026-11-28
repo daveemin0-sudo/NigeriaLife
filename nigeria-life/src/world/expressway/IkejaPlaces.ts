@@ -1,4 +1,5 @@
-import type { Builder } from '../kit/ArchKit';
+import { signBoard, type Builder } from '../kit/ArchKit';
+import { palm } from '../landmarks/GrandTerminal';
 import type { Card, PlaceShape } from './MorePlaces';
 
 /**
@@ -123,16 +124,24 @@ export function buildIkejaPlace(k: PlaceShape): Card | null {
       return { name: 'Faith Arena', category: 'Church', description: 'A church the size of a stadium: a choir of hundreds, a band, and a pastor who preaches till the walls shake.' };
     }
     case 'mmia-terminal': {
-      // The landside hall on the road, its glass front and kerb canopy; the airport itself (the
-      // terminal airside, the apron, the aircraft, the runway) stands behind it, reached by its own road
-      b.box(0xe5e7eb, 20, 12, 60, at(12), 0, place.z);
-      b.box(0x0ea5e9, 0.15, 8, 52, at(2) - s * 0.08, 0.5, place.z);
-      b.box(0x16a34a, 22, 1, 62, at(12), 12, place.z, { roll: s * 0.04 });
-      b.box(0xf8fafc, 6, 0.4, 50, at(-1), 4.8, place.z);
-      for (let i = 0; i < 5; i++) b.cylinder(0x9ca3af, 0.22, 4.8, at(-3), 0, place.z - 22 + i * 11);
-      k.obstruct(Math.min(at(2), at(22)), Math.max(at(2), at(22)), place.z - 30, place.z + 30, 12);
-      k.label('MURTALA MUHAMMED INTERNATIONAL AIRPORT', 'Departures · Arrivals · LOS', '#0b7a43', 13.6, 34);
-      return { name: 'Murtala Muhammed International Airport', category: 'International airport', description: 'The airport of Lagos: tickets, check-in, duty free and the lounge in the hall; through to security, the gates and the aircraft on the apron behind it.' };
+      // The airport's gateway on the road: lawns and palms either side of the airport road, and a tall
+      // sign at its mouth. The terminal itself (one building: departures, arrivals, everything) stands
+      // up that road, its glass end and its great roof seen from here (see landmarks/GrandTerminal)
+      const road = 6300;
+      for (const [from, to] of [[z0 + 2, road - 5], [road + 5, z0 + along - 2]]) b.ground(0x4d7c0f, 21, to - from, at(12.5), 0.012, (from + to) / 2);
+      for (const z of [z0 + 10, z0 + 30, z0 + 50, z0 + 70, road - 10, road + 10, road + 25]) palm(b, at(4), z, 7, z);
+      for (const z of [z0 + 20, z0 + 40, z0 + 60]) palm(b, at(16), z, 8, z * 0.7);
+      // The sign: a dark slab, the name on both faces, and the airline's green along its edge
+      b.box(0x0f172a, 1.2, 9, 8, at(3), 0, road - 7.5, { solid: true }).box(0x0b7a43, 1.3, 0.5, 8.1, at(3), 9, road - 7.5);
+      for (const turn of [Math.PI / 2, -Math.PI / 2]) {
+        const sign = signBoard(['MURTALA MUHAMMED', 'INTERNATIONAL AIRPORT', '✈  LOS  ·  Terminal ahead'], 7.4, 5.2, '#0f172a', '#facc15');
+        sign.position.set(at(3) + Math.sin(turn) * 0.62, 5.6, road - 7.5);
+        sign.rotation.y = turn;
+        k.group.add(sign);
+      }
+      for (const z of [road - 13, road - 15, road - 17]) b.cylinder(0xe5e7eb, 0.07, 8, at(2), 0, z, { solid: true }).box(0x0b7a43, 0.04, 1, 0.5, at(2), 6.8, z + 0.27).box(0xffffff, 0.04, 1, 0.5, at(2), 6.8, z + 0.77).box(0x0b7a43, 0.04, 1, 0.5, at(2), 6.8, z + 1.27);
+      k.label('MURTALA MUHAMMED INTERNATIONAL AIRPORT', 'The terminal is up the airport road · Departures · Arrivals', '#0b7a43', 9.6, 34);
+      return { name: 'Murtala Muhammed International Airport', category: 'International airport', description: 'The airport of Lagos, one terminal: check-in, security, the café, the lounge, the gates and arrivals, all inside.' };
     }
   }
   return null;

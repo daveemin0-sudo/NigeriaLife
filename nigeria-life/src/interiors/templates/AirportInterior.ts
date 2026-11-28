@@ -8,7 +8,7 @@ import { AIRPORTS, ROUTES, type FlightCity } from '../../travel/Flights';
 import { Kit, M, WAYFINDING, contactShade, floorPlane, lightPool, mergeFloorDecals, signMesh } from '../airport/TerminalKit';
 import { BAG_COLOURS, LuggageBatch, type BagKind } from '../airport/Luggage';
 import { AirportCrowd } from '../airport/AirportCrowd';
-import { AirportServices, type AirportSeat } from '../airport/AirportServices';
+import { AirportServices, SEAT_FORWARD, seatLift, type AirportSeat } from '../airport/AirportServices';
 import { AirportSound } from '../airport/AirportSound';
 import { RigRegistry } from '../../graphics/people/RigRegistry';
 import { APRON, APRON_CREW, ApronLife } from '../airport/ApronLife';
@@ -34,6 +34,8 @@ const H = 9;
 const COUNTERS = [-23.5, -20.5, -17.5, -14.5, -11.5, -8.5];
 const LANES = [-2.5, 3.5];
 const GATES = [8, 20];
+/** How far a café chair stands from the middle of its table: room for the knees under the top */
+const CAFE_CHAIR = 0.88;
 const CAROUSEL = new THREE.Vector3(16, 0, 10);
 const ARRIVALS_DOOR = 26.2;
 const BELT_STRAIGHT = 6;
@@ -301,6 +303,7 @@ export class AirportInterior {
     this.group.add(this.buildCafe());
     this.group.add(this.buildShop());
     this.group.add(this.buildLounge());
+    this.buildPrayerRooms();
     this.group.add(this.buildBaggageHall());
     this.group.add(this.buildSigns());
     this.group.add(this.buildFloorLight());
@@ -349,7 +352,7 @@ export class AirportInterior {
     mergeFloorDecals(this.group);
 
     // Interaction points above are room-relative; the player walks in world space (the services' own are already)
-    for (const obj of this.interactiveList) if (!obj.id.startsWith('airport_sit_') && !['airport_cafe_counter', 'airport_shop_till', 'airport_toilets'].includes(obj.id)) obj.interactionPoint.add(this.group.position);
+    for (const obj of this.interactiveList) if (!obj.id.startsWith('airport_sit_') && !['airport_cafe_counter', 'airport_shop_till', 'airport_toilets', 'airport_mosque', 'airport_chapel'].includes(obj.id)) obj.interactionPoint.add(this.group.position);
     this.refreshBoards(true);
   }
 
@@ -766,12 +769,12 @@ export class AirportInterior {
   private buildCafe(): THREE.Group {
     const k = new Kit();
     // The counter along the wall, its pastry case, the coffee machine and the shelves behind
-    k.soft(M.woodDark, 0.8, 1.05, 7, -25.4, 0, -6, 0.06);
-    k.box(M.solid, 0.95, 0.05, 7.1, -25.4, 1.05, -6);
-    k.box(M.glassShelf, 0.7, 0.45, 2.2, -25.4, 1.1, -4.2);
-    for (let i = 0; i < 6; i++) this.goods(k, 0.16, 0.08, 0.16, -25.45 + ((i % 2) - 0.5) * 0.24, 1.14, -5.0 + (i >> 1) * 0.55, [0xc58b3c, 0xe7c07a, 0x8b5a2b][i % 3]);
-    k.box(M.steel, 0.55, 0.5, 0.75, -25.5, 1.1, -7.4);
-    k.box(M.black, 0.4, 0.12, 0.6, -25.5, 1.6, -7.4);
+    k.soft(M.woodDark, 0.8, 0.93, 7, -25.4, 0, -6, 0.06);
+    k.box(M.solid, 0.95, 0.05, 7.1, -25.4, 0.93, -6);
+    k.box(M.glassShelf, 0.7, 0.36, 2.2, -25.4, 0.98, -4.2);
+    for (let i = 0; i < 6; i++) this.goods(k, 0.16, 0.08, 0.16, -25.45 + ((i % 2) - 0.5) * 0.24, 1.02, -5.0 + (i >> 1) * 0.55, [0xc58b3c, 0xe7c07a, 0x8b5a2b][i % 3]);
+    k.box(M.steel, 0.55, 0.5, 0.75, -25.5, 0.98, -7.4);
+    k.box(M.black, 0.4, 0.12, 0.6, -25.5, 1.48, -7.4);
     k.box(M.woodDark, 0.4, 2.2, 6.6, -27.4, 0.95, -6);
     for (let y = 1.4; y < 2.9; y += 0.5) {
       k.box(M.wood, 0.45, 0.04, 6.4, -27.35, y, -6);
@@ -784,8 +787,8 @@ export class AirportInterior {
       k.cyl(M.black, 0.05, 0.05, 0.74, tx, 0, tz, 10);
       k.cyl(M.black, 0.28, 0.3, 0.03, tx, 0, tz, 16);
       for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-        const cx = tx + Math.sin(a) * 0.78;
-        const cz = tz + Math.cos(a) * 0.78;
+        const cx = tx + Math.sin(a) * CAFE_CHAIR;
+        const cz = tz + Math.cos(a) * CAFE_CHAIR;
         k.soft(M.leatherTan, 0.44, 0.08, 0.44, cx, 0.44, cz, 0.05, a);
         for (const [lx, lz] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]]) {
           k.box(M.black, 0.035, 0.44, 0.035, cx + Math.cos(a) * lx + Math.sin(a) * lz, 0, cz - Math.sin(a) * lx + Math.cos(a) * lz, a);
@@ -887,6 +890,132 @@ export class AirportInterior {
     g.add(carpet);
     this.station(g, 'airport_vip_lounge', { x: -21, z: -11.9 });
     return g;
+  }
+
+  /**
+   * The prayer rooms the signs point to, beside the lounge by the apron windows: a mosque and a
+   * chapel side by side, each with its own doorway in the front wall. The mosque: green carpet with
+   * the rows of mats marked, the mihrab in the back (qibla) wall, a shoe rack inside the door, the
+   * prayer times outside, and the ablution basin with its taps and stools along the front wall. The
+   * chapel: pews, an altar with a cloth and candles, a cross on the wall.
+   */
+  private buildPrayerRooms(): void {
+    // Each wall is its own piece (the one between the camera and the player fades, alone); what is
+    // in the rooms is low and never fades
+    const k = new Kit();
+    const walls = { front: new Kit(), west: new Kit(), east: new Kit(), divide: new Kit(), back: new Kit() };
+    const west = -13.8, east = -3.8, front = -14.6, back = -19.75, divide = -8.2;
+    const tall = 3.0;
+    let w = walls.back;
+    const wall = (x0: number, z0: number, x1: number, z1: number) => {
+      const k = w;
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+      k.box(M.plasterWarm, alongX ? len : 0.16, tall, alongX ? 0.16 : len, (x0 + x1) / 2, 0, (z0 + z1) / 2);
+      k.box(M.woodDark, alongX ? len + 0.02 : 0.2, 0.12, alongX ? 0.2 : len + 0.02, (x0 + x1) / 2, tall, (z0 + z1) / 2);
+      k.box(M.woodDark, alongX ? len + 0.01 : 0.18, 0.14, alongX ? 0.18 : len + 0.01, (x0 + x1) / 2, 0, (z0 + z1) / 2);
+      this.nav.blockRect((x0 + x1) / 2, (z0 + z1) / 2, alongX ? len / 2 + 0.1 : 0.2, alongX ? 0.2 : len / 2 + 0.1);
+    };
+    wall(west, back, east, back);
+    w = walls.west;
+    wall(west, back, west, front);
+    w = walls.east;
+    wall(east, back, east, front);
+    w = walls.divide;
+    wall(divide, back, divide, front);
+    // The front wall, with a doorway into each (mosque about x -9.3, chapel about x -6.0)
+    w = walls.front;
+    wall(west, front, -10.0, front);
+    wall(-8.6, front, -6.7, front);
+    wall(-5.3, front, east, front);
+    for (const [a, b] of [[-10.0, -8.6], [-6.7, -5.3]]) walls.front.box(M.woodDark, b - a + 0.2, 0.3, 0.2, (a + b) / 2, 2.3, front);
+
+    // --- The mosque ---
+    const carpet = new THREE.MeshStandardMaterial({ color: 0x1d5c3a, roughness: 1 });
+    const floor = new THREE.Mesh(floorPlane(divide - west - 0.16, front - back - 0.16, 2), carpet);
+    floor.position.set((west + divide) / 2, 0.008, (front + back) / 2);
+    // Rows of mats across the room, each edged in gold, facing the back wall
+    for (const z of [-18.3, -17.0, -15.7]) {
+      for (let x = west + 0.75; x < divide - 0.5; x += 1.05) {
+        k.box(M.red, 0.85, 0.012, 1.15, x, 0.01, z);
+        k.box(M.yellow, 0.85, 0.014, 0.05, x, 0.012, z - 0.52);
+      }
+    }
+    // The mihrab: a green niche in the qibla wall, an arch over it, the words above
+    const mid = (west + divide) / 2;
+    walls.back.box(M.green, 1.3, 1.95, 0.08, mid, 0, back + 0.1);
+    walls.back.cyl(M.green, 0.65, 0.65, 0.08, mid, 1.9, back + 0.1 - 0.04, 24, Math.PI / 2);
+    walls.back.box(M.yellow, 1.42, 0.06, 0.1, mid, 1.95, back + 0.12);
+    // A low wooden minbar beside it, and the shoe rack inside the door
+    k.box(M.woodDark, 0.7, 0.5, 0.7, mid + 1.4, 0, back + 0.5);
+    k.box(M.woodDark, 0.6, 0.9, 0.7, mid + 1.4, 0, back + 0.5 + 0.0);
+    k.box(M.wood, 1.4, 0.06, 0.35, -9.3 + 0.1, 0.25, front - 0.35 - 0.6);
+    k.box(M.wood, 1.4, 0.06, 0.35, -9.3 + 0.1, 0.55, front - 0.35 - 0.6);
+    k.box(M.woodDark, 0.05, 0.6, 0.35, -9.3 - 0.6, 0, front - 0.95);
+    k.box(M.woodDark, 0.05, 0.6, 0.35, -9.3 + 0.8, 0, front - 0.95);
+    for (let i = 0; i < 6; i++) this.goods(k, 0.12, 0.08, 0.26, -9.8 + i * 0.2, i % 2 ? 0.31 : 0.61, front - 0.95, [0x111111, 0x5b3a1e, 0x1f2937][i % 3]);
+    this.nav.blockRect(-9.2, front - 0.95, 0.75, 0.25);
+    // Outside: the ablution basin along the front wall, its taps, a stool at each
+    k.soft(M.solid, 2.2, 0.75, 0.42, -11.9, 0, front + 0.3, 0.05);
+    k.box(M.floorDark, 2.0, 0.04, 0.32, -11.9, 0.75, front + 0.3);
+    for (let i = 0; i < 4; i++) {
+      const x = -12.7 + i * 0.53;
+      k.cyl(M.chrome, 0.018, 0.018, 0.25, x, 1.0, front + 0.12, 8);
+      k.rod(M.chrome, 0.016, 0.14, x, 1.24, front + 0.18, Math.PI / 2, 8);
+      k.cyl(M.steel, 0.14, 0.14, 0.04, x, 0.38, front + 0.95, 14);
+      k.cyl(M.steel, 0.02, 0.02, 0.38, x, 0, front + 0.95, 6);
+    }
+    this.nav.blockRect(-11.9, front + 0.3, 1.15, 0.3);
+
+    // --- The chapel ---
+    const cx = (divide + east) / 2;
+    const tiles = new THREE.Mesh(floorPlane(east - divide - 0.16, front - back - 0.16, 1.2), M.floorDark);
+    tiles.position.set(cx, 0.008, (front + back) / 2);
+    // A runner up the middle to the altar
+    k.box(M.red, 0.9, 0.01, front - back - 0.6, cx, 0.012, (front + back) / 2);
+    for (const z of [-16.25, -17.45]) {
+      for (const side of [-1, 1]) {
+        const px = cx + side * 1.05;
+        k.box(M.wood, 1.5, 0.07, 0.42, px, 0.42, z);
+        k.box(M.wood, 1.5, 0.48, 0.06, px, 0.5, z + 0.22, 0, -0.1);
+        for (const end of [-0.72, 0.72]) k.box(M.woodDark, 0.06, 0.92, 0.5, px + end, 0, z + 0.02);
+        this.nav.blockRect(px, z + 0.05, 0.78, 0.3);
+      }
+    }
+    // The altar: a table under a white cloth, candles either side, the cross on the wall behind
+    k.box(M.wood, 1.5, 0.95, 0.65, cx, 0, back + 0.6);
+    k.box(M.solid, 1.56, 0.03, 0.71, cx, 0.95, back + 0.6);
+    k.box(M.yellow, 0.2, 0.6, 0.012, cx, 0.36, back + 0.6 + 0.36);
+    for (const side of [-0.55, 0.55]) {
+      k.cyl(M.chrome, 0.035, 0.05, 0.16, cx + side, 0.98, back + 0.6, 10);
+      k.cyl(M.solid, 0.025, 0.025, 0.16, cx + side, 1.14, back + 0.6, 8);
+      k.cyl(M.lamp, 0.012, 0.02, 0.05, cx + side, 1.3, back + 0.6, 6);
+    }
+    this.nav.blockRect(cx, back + 0.6, 0.85, 0.45);
+    walls.back.box(M.woodDark, 0.14, 1.5, 0.08, cx, 1.25, back + 0.12);
+    walls.back.box(M.woodDark, 0.85, 0.14, 0.08, cx, 2.25, back + 0.12);
+
+    const g = k.build('prayer rooms');
+    g.add(floor, tiles);
+    const pieces: Record<string, THREE.Group> = {};
+    for (const [name, kit] of Object.entries(walls)) {
+      pieces[name] = kit.build(`prayer rooms ${name} wall`);
+      this.group.add(pieces[name]);
+    }
+    this.group.add(g);
+    // Signs over each door, the prayer times between them, and one above to find them by
+    const mosqueSign = signMesh(['🕌 Mosque'], 1.6, 0.42, WAYFINDING);
+    mosqueSign.position.set(-9.3, 2.72, front + 0.1);
+    const chapelSign = signMesh(['✝ Chapel'], 1.6, 0.42, WAYFINDING);
+    chapelSign.position.set(-6.0, 2.72, front + 0.1);
+    const times = signMesh(['Prayer times', 'Fajr 5:25 · Dhuhr 1:15', 'Asr 4:30 · Maghrib 6:50', 'Isha 8:00'], 1.5, 1.0, { bg: '#0f3d2a', fg: '#f5e7b2', density: 220 });
+    times.position.set(-7.65, 1.55, front + 0.1);
+    const above = signMesh(['🛐 Prayer rooms · Mosque · Chapel'], 4.2, 0.5, WAYFINDING);
+    above.position.set(-8.8, 3.6, front + 0.05);
+    const words = signMesh(['﷽'], 1.1, 0.4, { bg: '#0f7a46', fg: '#f2c94c', density: 240 });
+    words.position.set(mid, 2.95, back + 0.16);
+    pieces.front.add(mosqueSign, chapelSign, times, above);
+    pieces.back.add(words);
   }
 
   // --- Arrivals: the belt, SIM and cab desks ---------------------------------------------------------
@@ -1287,10 +1416,15 @@ export class AirportInterior {
   private buildCrowd(): AirportCrowd {
     // Every seat in the hall. About three in ten gate seats, some café chairs and a few lounge
     // armchairs have someone in them (always the same ones); the rest are free for the player
-    const seats: Array<{ x: number; z: number; yaw: number }> = [];
+    const seats: Array<{ x: number; z: number; yaw: number; y: number }> = [];
     let n = 7;
     const roll = () => (n = (n * 1103515245 + 12345) & 0x7fffffff) % 100;
-    const seat = (s: AirportSeat, crowd: boolean) => (crowd ? seats.push({ x: s.x, z: s.z, yaw: s.yaw }) : this.freeSeats.push(s));
+    // (the crowd puts its sitters SIT_FORWARD in front of a seat and SIT_UP above its y: where the player would sit)
+    const seat = (s: AirportSeat, crowd: boolean) => {
+      if (!crowd) return this.freeSeats.push(s);
+      const more = SEAT_FORWARD[s.kind] - 0.17;
+      return seats.push({ x: s.x + Math.sin(s.yaw) * more, z: s.z + Math.cos(s.yaw) * more, yaw: s.yaw, y: seatLift(s.top) - 0.07 });
+    };
     let k = 0;
     for (const cx of GATES) {
       for (const rz of [-12.5, -9.5, -6.5]) {
@@ -1301,7 +1435,12 @@ export class AirportInterior {
     }
     for (const [tx, tz] of [[-22.5, -10.5], [-19, -10.5], [-22.5, -7.5], [-19, -7.5], [-17.5, -4.2]]) {
       for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-        seat({ id: `airport_seat_${k++}`, x: tx + Math.sin(a) * 0.78, z: tz + Math.cos(a) * 0.78, yaw: a + Math.PI, top: 0.52, kind: 'cafe', table: [tx, tz] }, roll() < 40);
+        seat({ id: `airport_seat_${k++}`, x: tx + Math.sin(a) * CAFE_CHAIR, z: tz + Math.cos(a) * CAFE_CHAIR, yaw: a + Math.PI, top: 0.52, kind: 'cafe', table: [tx, tz] }, roll() < 40);
+      }
+    }
+    for (const z of [-16.25, -17.45]) {
+      for (const px of [-7.05, -4.95]) {
+        for (const dx of [-0.4, 0.4]) if (roll() < 35) seats.push({ x: px + dx, z: z + 0.04, yaw: Math.PI, y: seatLift(0.49) - 0.07 });
       }
     }
     for (const [ax, az] of [[-25, -15], [-20.5, -17.5], [-17.4, -15]]) {

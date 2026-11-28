@@ -10,6 +10,7 @@ import { buildMorePlace, moreMenu, DESTINATIONS_HERE, FORECOURT_DEPTH } from './
 import { STATIONS } from '../Fuel';
 import { PLACE_SPECS } from '../../interiors/places/PlaceSpecs';
 import { DestinationRegistry } from '../../destinations/DestinationRegistry';
+import { Employment } from '../../jobs/Employment';
 import type { FleetKind } from '../../assets/Fleet';
 
 /**
@@ -494,6 +495,23 @@ export class Roadside {
           { label: '⛽ The pump', note: 'Fill up', pick: () => this.hooks.openPump(placeId) },
           { label: '🛒 Go into the mart', note: 'Water, snacks, engine oil', pick: () => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) },
         ] }),
+      };
+    }
+    // The airport is one terminal: its door on Ikorodu Road goes into it (out at its kerb when done), as its
+    // own front door does. Its airline and FAAN staff work from an office, offered to those who work there.
+    if (placeId === 'mmia-terminal') {
+      const kerb = new THREE.Vector3(-53, 0, 6268.8);
+      const intoTerminal = (host: PlaceHost) => host.enter('airport', kerb);
+      return {
+        label: () => '✈️ Go into the terminal',
+        run: (host: PlaceHost) => {
+          const staff = ['dana-checkin-desk', 'faan-aviation-sec'].some((id) => Employment.get().isEmployed(id));
+          if (!staff) return intoTerminal(host);
+          host.ask({ who: 'Murtala Muhammed International Airport', role: 'Ikeja', text: 'The terminal, or the staff office for your shift?', choices: [
+            { label: '✈️ Into the terminal', note: 'Check-in, security, the gates, arrivals', pick: () => intoTerminal(host) },
+            { label: '🪪 The staff office', note: 'Airline and FAAN staff: your shift', pick: () => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) },
+          ] });
+        },
       };
     }
     // The outdoor places are gone into as well: onto the beach, into the clubhouse, the yacht club, the terminal

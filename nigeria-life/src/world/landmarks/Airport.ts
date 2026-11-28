@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildGrandTerminal, grandTerminalExtras, parkedFootprints, parkRows } from './GrandTerminal';
 import { Builder, signBoard } from '../kit/ArchKit';
 import { createCashMachine } from '../kit/CashMachine';
 import { clickBox, figure, type Landmark, type LandmarkHost } from './Landmark';
@@ -321,6 +322,8 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const b = new Builder().around(DRAWN.x, DRAWN.z);
 
   // --- Ground -----------------------------------------------------------------------------
+  // Mown grass over the airport's own grounds, under everything else (the airfield, the forecourt, the car park)
+  b.ground(0x5f8f32, 95, 80, -110.5, 0.006, -116);
   b.ground(0x4d7c0f, 92, 70, -113.5, 0.012, -123);
   b.ground(0xa1a1aa, 68, 34, -102, 0.02, -128.5);
   b.ground(0x18181b, 88, 11, -113, 0.026, RUNWAY_Z);
@@ -328,19 +331,6 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   // Taxiway links between apron and runway
   b.ground(0x27272a, 14, 17, -78, 0.024, -137.5);
   b.ground(0x27272a, 14, 17, -136, 0.024, -137.5);
-
-  // The forecourt: a set-down road along the kerb and a row of parked cars beyond it
-  b.ground(0x3f3f46, 41, 4, -90.5, 0.022, -96).ground(0x52525b, 41, 4, -90.5, 0.02, -92);
-  for (let x = -110; x <= -71; x += 3) b.ground(WHITE, 0.12, 3.6, x, 0.03, -92);
-  const CARS = [0xb91c1c, 0xf8fafc, 0x1e3a8a, 0x111827, 0xfacc15, 0x9ca3af, 0x14532d];
-  [-108.5, -105.5, -99.5, -96.5, -90.5, -87.5, -74.5, -71.5].forEach((x, index) => {
-    const hex = CARS[index % CARS.length];
-    b.box(hex, 1.8, 0.75, 3.4, x, 0.3, -92.1, { solid: true }).box(0x1f2937, 1.6, 0.55, 1.8, x, 1.05, -92.3).box(0x111827, 1.9, 0.5, 0.6, x, 0, -93.2).box(0x111827, 1.9, 0.5, 0.6, x, 0, -91);
-  });
-  for (const x of [-86, -74]) {
-    b.cylinder(0xe5e7eb, 0.07, 8, x, 0, -94.1, { solid: true });
-    b.box(0x0b7a43, 0.6, 1, 0.04, x + 0.37, 6.9, -94.1).box(0xffffff, 0.6, 1, 0.04, x + 0.97, 6.9, -94.1).box(0x0b7a43, 0.6, 1, 0.04, x + 1.57, 6.9, -94.1);
-  }
 
   // Runway threshold piano keys and touchdown zone markings
   for (let x = -150; x <= -76; x += 6) b.ground(WHITE, 3.2, 0.35, x, 0.036, RUNWAY_Z);
@@ -389,24 +379,12 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     for (let x = -76; x < toX - 2; x += 6) b.ground(WHITE, 2.6, 0.16, x, 0.03, alongZ);
   }
 
-  // --- The terminal -----------------------------------------------------------------------
-  b.box(0xf1f5f9, 42, 8.5, 12, -90, 0, -109, { solid: true });
-  b.box(0x0c4a6e, 38, 5.8, 0.12, -90, 1.2, -102.96).windows(0x7dd3fc, 16, 2, 38, 1.2, 5.8, -90, -102.9, 0, { glow: true });
-  b.box(0x0c4a6e, 38, 5.8, 0.12, -90, 1.2, -115.04).windows(0x7dd3fc, 16, 2, 38, 1.2, 5.8, -90, -115.1, Math.PI, { glow: true });
-  b.box(0xe2e8f0, 44, 0.45, 15, -90, 8.2, -109, { pitch: 0.03 });
-  b.box(LIVERY_GREEN, 44.2, 0.8, 0.35, -90, 7.8, -101.35).box(LIVERY_GOLD, 44.2, 0.12, 0.38, -90, 7.65, -101.35);
-  b.box(LIVERY_GREEN, 44.2, 0.8, 0.35, -90, 7.8, -116.65);
-  b.box(WHITE, 22, 2.2, 6.5, -90, 8.5, -109).windows(0xfef9c3, 10, 1, 21, 8.7, 1.8, -90, -105.7, 0, { glow: true });
-  b.box(0xe2e8f0, 23, 0.35, 7.5, -90, 10.7, -109);
-  // The way in, under a canopy at the kerb
-  b.box(0x0f172a, 4.8, 3.4, 0.22, -80, 0, -102.92).box(0x93c5fd, 4.0, 3.0, 0.28, -80, 0, -102.92);
-  b.box(WHITE, 28, 0.35, 5.2, -84, 4.4, -100.3).box(LIVERY_GREEN, 28, 0.5, 0.25, -84, 4.3, -97.8);
-  for (const x of [-96.5, -90, -85, -75, -71.5]) b.cylinder(0x94a3b8, 0.18, 4.4, x, 0, -98.0, { solid: true });
-  // Posts for the name on the roof
-  for (const x of [-98, -82]) b.box(0x94a3b8, 0.2, 1.4, 0.2, x, 8.4, -102.6);
-  b.box(0x0f172a, 22.3, 2.6, 0.14, -90, 9.6, -102.6);
+  // --- The terminal: one great glass hall under a vaulted roof (see GrandTerminal) ---------
+  const rows = parkRows(options.approach?.alongZ);
+  buildGrandTerminal(b, rows);
+  for (const f of parkedFootprints(rows)) b.occupy(f.minX, f.maxX, f.minZ, f.maxZ, 1.5);
   // Doors onto the apron
-  for (const x of [-98, -84]) b.box(0x0f172a, 3.2, 2.8, 0.2, x, 0, -115.08);
+  for (const x of [-98, -84]) b.box(0x0f172a, 3.2, 2.8, 0.2, x, 0, -115.38, { solid: false });
 
   // --- Articulated Passenger Jet Bridges ---
   // Gate 1 Jet Bridge (extending from second-floor Gate 1 at x = -84 to Stand 1)
@@ -502,7 +480,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
 
   // --- The fence between the street and the airfield --------------------------------------
   const FENCE = 0x64748b;
-  b.box(FENCE, 46, 2.4, 0.2, -135, 0, -90.4, { solid: true }).box(FENCE, 0.2, 2.4, 12.6, -112, 0, -96.7, { solid: true }).box(FENCE, 2, 2.4, 0.2, -111, 0, -103, { solid: true });
+  b.box(FENCE, 40.5, 2.4, 0.2, -137.75, 0, -90.4, { solid: true }).box(FENCE, 0.2, 2.4, 12.6, -117.5, 0, -96.7, { solid: true }).box(FENCE, 3.2, 2.4, 0.2, -116, 0, -103, { solid: true });
   b.box(FENCE, 0.2, 2.4, 40.5, -69.4, 0, -135.25, { solid: true }).box(FENCE, 89, 2.4, 0.2, -113.5, 0, -155.5, { solid: true });
   b.box(FENCE, 0.2, 2.4, 65.1, -157.9, 0, -122.95, { solid: true });
 
@@ -510,11 +488,6 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   group.position.set(site.x, 0, site.z);
   const local = (x: number, y: number, z: number) => new THREE.Vector3(x - DRAWN.x, y, z - DRAWN.z);
 
-  const nameSign = signBoard([name.toUpperCase(), `International & Domestic Terminals  ·  ${code}`], 22, 2.4, '#0f172a', '#facc15');
-  nameSign.position.copy(local(-90, 10.75, -102.5));
-  const gates = signBoard(['GATES 1 - 4'], 7, 0.9, '#0f172a', '#facc15');
-  gates.position.copy(local(-91, 4.6, -115.14));
-  gates.rotation.y = Math.PI;
   const hangarSign = signBoard([AIRLINE, 'Aircraft Maintenance & Engineering'], 10, 1.6, '#f8fafc', '#0b7a43');
   hangarSign.position.copy(local(hangar.x + 9.14, 7.2, hangar.z));
   hangarSign.rotation.y = Math.PI / 2;
@@ -523,7 +496,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   marshal.rotation.y = Math.PI / 2;
   const porter = figure(0x1d4ed8, 0x1f2937, 0x6b4226);
   porter.position.copy(local(-77.6, 0, -99.6));
-  group.add(nameSign, gates, hangarSign, marshal, porter);
+  group.add(hangarSign, marshal, porter, grandTerminalExtras(name, code, local, rows));
 
   // The radar turns
   const radar = new Builder().box(0xf97316, 3.2, 0.5, 0.14, 0, 0.5, 0).box(0x94a3b8, 0.14, 0.5, 0.14, 0, 0, 0).build('radar');
@@ -544,7 +517,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const board = new THREE.Mesh(new THREE.PlaneGeometry(9, 2.8), new THREE.MeshBasicMaterial({ map: texture }));
-  board.position.copy(local(-104, 4.2, -102.8));
+  board.position.copy(local(-90, 5.9, -102.5));
   board.userData.surface = true;
   group.add(board);
   let shown = '';
@@ -600,11 +573,11 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   };
 
   // The front of the terminal is the way in, all but its east end, where the cash machine is in the wall
-  const door = clickBox(22, 6, 6);
-  door.position.copy(local(-87, 3, -101));
+  const door = clickBox(30, 7, 6);
+  door.position.copy(local(-90, 3.5, -101));
   group.add(door);
-  const machine = createCashMachine({ id: `airport-${code.toLowerCase()}`, name, x: -72.5 + move.x, z: -102.94 + move.z, facing: 0 });
-  machine.group.position.copy(local(-72.5, 0, -102.94));
+  const machine = createCashMachine({ id: `airport-${code.toLowerCase()}`, name, x: -68.3 + move.x, z: -102.6 + move.z, facing: 0 });
+  machine.group.position.copy(local(-68.3, 0, -102.6));
   group.add(machine.group);
   const entrance = at(-80, -101.2);
   const leaving = flights.routesFrom(options.city);
@@ -644,7 +617,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       flight.clock = Math.floor(flight.clock / FLIGHT_SECONDS) * FLIGHT_SECONDS + ARRIVED_FROM + 0.05;
       landmark.update?.(0, 12);
     },
-    zone: { minX: -158 + move.x, maxX: -69 + move.x, minZ: -156 + move.z, maxZ: -90 + move.z },
+    zone: { minX: -158 + move.x, maxX: -63 + move.x, minZ: -156 + move.z, maxZ: -76 + move.z },
     group,
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [

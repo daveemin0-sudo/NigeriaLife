@@ -530,6 +530,37 @@ function linesOf(mesh: THREE.SkinnedMesh, kind: string) {
 }
 
 /**
+ * Every piece of a person (shirt, trousers, cap, hair, face) is kept or left out of a frame as the
+ * whole person. Three measures a skinned piece once, in the pose it happened to have then, and never
+ * again: a cap measured while its wearer stood was left out once they sat down and the camera came
+ * close, and a shirt measured mid-stride was left out at the edge of the view, leaving a head and
+ * hands in the air. One sphere round the whole body, roomy enough for sitting, reaching and lying.
+ */
+function wholeBodyBounds(root: THREE.Object3D, scene: THREE.Object3D): void {
+  root.updateMatrixWorld(true);
+  const all = new THREE.Box3();
+  const box = new THREE.Box3();
+  const pieces: THREE.SkinnedMesh[] = [];
+  scene.traverse((o) => {
+    const mesh = o as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || o.name.startsWith('LOD_') || o.parent?.name.startsWith('LOD_')) return;
+    pieces.push(mesh);
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    all.union(box.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld));
+  });
+  if (all.isEmpty()) return;
+  const sphere = all.getBoundingSphere(new THREE.Sphere());
+  sphere.radius += 0.8;
+  const inverse = new THREE.Matrix4();
+  for (const mesh of pieces) {
+    inverse.copy(mesh.matrixWorld).invert();
+    const local = sphere.clone().applyMatrix4(inverse);
+    mesh.boundingSphere = local;
+    mesh.boundingBox = local.getBoundingBox(new THREE.Box3());
+  }
+}
+
+/**
  * Load a gender-specific skinned human GLB. Returns null if the asset is missing
  * (caller should keep PersonBuilder visible).
  */
@@ -566,6 +597,7 @@ export async function loadSkinnedCharacter(
   // Hanging cloth (skirts, gowns, tunics, the agbada) follows the legs through its own bones, after the posture
   const clothRig = ClothRig.attach(scene);
   const height = normalizeGroundAndScale(root, gender === 'female' ? 1.68 : 1.78);
+  wholeBodyBounds(root, scene);
 
   const mixer = new THREE.AnimationMixer(scene);
   const actions = new Map<string, THREE.AnimationAction>();
