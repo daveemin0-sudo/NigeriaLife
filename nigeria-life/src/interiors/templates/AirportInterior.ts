@@ -1,3 +1,5 @@
+import { addWork } from '../places/WorkSite';
+import { AIRPORT_WORK } from '../places/PlaceJobs';
 import * as THREE from 'three';
 import type { InteriorDefinition, InteriorNPCDef } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
@@ -367,6 +369,9 @@ export class AirportInterior {
 
     // Interaction points above are room-relative; the player walks in world space (the services' own are already)
     for (const obj of this.interactiveList) if (!obj.id.startsWith('airport_sit_') && !['airport_cafe_counter', 'airport_shop_till', 'airport_toilets', 'airport_mosque', 'airport_chapel'].includes(obj.id)) obj.interactionPoint.add(this.group.position);
+    // Work here: check-in agents and security screeners, taken on by the duty manager and the commander
+    const site = { key: 'mmia-terminal', name: 'Murtala Muhammed Airport (LOS)', group: this.group, interactiveList: this.interactiveList, addNpc: (npc: InteriorNPCMesh) => this.npcs.push(npc), world: (x: number, z: number) => this.group.position.clone().add(new THREE.Vector3(x, 0, z)) };
+    for (const w of AIRPORT_WORK) addWork(site, w);
     this.refreshBoards(true);
   }
 

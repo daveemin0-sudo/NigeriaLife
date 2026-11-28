@@ -2064,7 +2064,8 @@ export class Game {
       const want = Shifts.arriving;
       if (!want) return;
       const key = WORKPLACE[want];
-      if (!key || interiorId !== `interior_place_${key}`) return;
+      // (the airport's work is in its own hall, not a roadside room)
+      if (!key || (interiorId !== `interior_place_${key}` && !(key === 'mmia-terminal' && interiorId === 'interior_airport'))) return;
       Shifts.arriving = null;
       setTimeout(() => this.hud.runPlaceAction(`work_${key}_hire_${want}`), 700);
     };

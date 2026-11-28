@@ -118,28 +118,6 @@ export const PLACE_WORK: Record<string, WorkSpec[]> = {
       task([-20.95, -8], [-19.85, -8], 'reach', 3, 'Cartons of noodles stacked on the shelf, labels to the front.'),
     ]),
   ],
-  'mmia-terminal': [
-    W('dana-checkin-desk',
-      { name: 'Mrs Coker', title: 'Duty manager', at: [-12, -5], facing: HALF, outfit: 0x0b7a43, gender: 'female', says: 'Check-in agents work by the flight. Can you smile at 5 am?' },
-      'check in a flight\'s passengers',
-      'Agents are paid by the flight checked in',
-      'Desk two. The Abuja flight is open.',
-      [
-        task([-5, -8], [-5, -7], 'reach', 2.5, 'Passport and ticket checked against the list.'),
-        task([-5, -8], [-5, -7], 'carry', 2.5, 'The bag is weighed, tagged and sent down the belt.'),
-        task([-5, -8], [-5, -7], 'reach', 2, '"Gate 4, boarding at three." The boarding pass prints.'),
-      ]),
-    W('faan-aviation-sec',
-      { name: 'Commander Yusuf', title: 'AVSEC commander', at: [11, -1], facing: -HALF, outfit: 0x0f172a, gender: 'male', cap: true, says: 'Security is a serious job. Are you serious?' },
-      'screen passengers at the checkpoint',
-      'Screeners are paid by the shift',
-      'Take the tray side. Nothing gets past us.',
-      [
-        task([5.2, 1.2], [5.2, 0], 'reach', 2.5, 'Belt, phone and keys checked in the tray.'),
-        task([8.6, -1.2], [7, -1.2], 'greet', 2.5, 'The arch beeps; you wand the passenger. Only a coin.'),
-        task([5.2, 1.2], [5.2, 0], 'reach', 2, 'The tray goes back and you wave them through.'),
-      ]),
-  ],
   'dangote-refinery': [W('dangote-refinery-ops',
     { name: 'Engr. Ade', title: 'Shift supervisor', at: [8, -6], facing: -HALF, outfit: 0xf8fafc, gender: 'male', says: 'Operators work by the shift. Hard hat, always.' },
     'run a shift in the control room',
@@ -255,3 +233,33 @@ export const PLACE_WORK: Record<string, WorkSpec[]> = {
 
 /** Which place each of these employers works out of */
 export const WORKPLACE: Record<string, string> = Object.fromEntries(Object.entries(PLACE_WORK).flatMap(([key, works]) => works.map((w) => [w.employer, key])));
+
+/**
+ * Work in the airport's own hall (its coordinates): agents at the check-in counters, screeners at the
+ * security lanes. The cards keep the old place's key, mmia-terminal, so the jobs app and the book find them.
+ */
+export const AIRPORT_WORK: WorkSpec[] = [
+  W('dana-checkin-desk',
+    { name: 'Mrs Coker', title: 'Duty manager', at: [-26.6, 8.6], facing: HALF, outfit: 0x0b7a43, gender: 'female', says: 'Check-in agents work by the flight. Can you smile at 5 am?' },
+    'check in a flight\'s passengers',
+    'Agents are paid by the flight checked in',
+    'Counter three is free. The Abuja flight is open.',
+    [
+      task([-17.5, 3.4], [-17.5, 5.2], 'reach', 2.5, 'Passport and ticket checked against the list. "Window or aisle?"'),
+      task([-16.4, 3.4], [-16.05, 4.4], 'carry', 2.5, 'The bag goes on the scale: 19 kg, tagged and sent down the belt.'),
+      task([-17.5, 3.4], [-17.5, 5.2], 'reach', 2, '"Gate 1, boarding at three." The boarding pass prints.'),
+    ]),
+  W('faan-aviation-sec',
+    { name: 'Commander Yusuf', title: 'AVSEC commander', at: [7.6, 4.6], facing: -HALF, outfit: 0x0f172a, gender: 'male', cap: true, says: 'Security is a serious job. Are you serious?' },
+    'screen passengers at the checkpoint',
+    'Screeners are paid by the shift',
+    'Lane two is yours. Nothing gets past us.',
+    [
+      task([1.55, 4.6], [2.3, 4.6], 'reach', 2.5, 'Belt, phone and keys checked in the tray.'),
+      task([1.55, 2.3], [1.2, 2.3], 'reach', 2.5, 'On the X-ray: a laptop, a charger, a tin of milk. Clear.'),
+      task([3.8, 0.9], [3.8, 2.3], 'greet', 2.5, 'The arch beeps; you wand the passenger. Only a coin. "Go on, safe flight."'),
+    ]),
+];
+
+// The airport's work is listed with the others: "Go" rides to the terminal
+for (const w of AIRPORT_WORK) WORKPLACE[w.employer] = 'mmia-terminal';

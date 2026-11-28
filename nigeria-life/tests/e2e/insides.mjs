@@ -45,7 +45,7 @@ export async function run(browser, check) {
     return keys.map((k) => { const o = g.world.interactiveObjects.find((x) => x.id === `roadside-${k}`); g.hud.showInteractionCard(o); return document.getElementById('card-action-btn')?.textContent ?? ''; });
   }, KEYS);
   await page.evaluate(() => window.game.hud.hideInteractionCard());
-  check('insides: every place along the road offers to go inside', cards.every((c) => c.label) && labels.every((l) => /Go inside|Go onto the beach|Onto the course|Into the clubhouse|Into the yacht club|Into the terminal/.test(l)), { labels });
+  check('insides: every place along the road offers to go inside', cards.every((c) => c.label) && labels.every((l) => /Go inside|Go onto the beach|Onto the course|Into the clubhouse|Into the yacht club|Into the terminal|Go into the terminal/.test(l)), { labels });
 
   // ------------------------------------------------------------------ The market
   const inMarket = await enter(page, 'balogun-market');
@@ -156,7 +156,7 @@ export async function run(browser, check) {
   const rooms = [];
   for (const key of KEYS.filter((k) => !['balogun-market', 'amala-shitta', 'polling-unit', 'computer-village', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'].includes(k))) {
     const name = await enter(page, key);
-    const things = await page.evaluate((k) => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith(`place_${k}_`)).length, key);
+    const things = await page.evaluate((k) => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith(`place_${k}_`) || (k === 'mmia-terminal' && o.id.startsWith('airport_'))).length, key);
     rooms.push({ key, name, things });
     await leave(page);
     await wait(900);
