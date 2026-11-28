@@ -205,9 +205,9 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 | towns Trukadero drop | PASS drift 0 @ (−42,35) | FAIL drift 14 (map −170,332 / street −170,318) | **PASS** (`a7ab3df` verify 19/19) |
 | onboarding Take me reachable | PASS | FAIL under HUD chips (inset floor) | **PASS** 26/26 (`a6a179c` tip-verify-onboarding) |
 
-Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`/`ccaf3dd`); livingcity Lagos assert is `14–20` stalls + `agents >= 400` (frozen `=== 440` already false on bf55). Abuja/PH agent headcounts softened the same way. **Crowd solids:** network `going` walkers skip street props (`4c44ab4`) — tip-only morning `stuck>0` / `afterFast.wrong` from stalls on the pavement graph; re-verify livingcity. Still watch: hour-14 `gaveUp` flake, PH stall `dueUp` at 21:30.
+Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`/`ccaf3dd`); livingcity Lagos assert is `14–20` stalls + `agents >= 400`. Abuja/PH agent headcounts softened the same way. **Crowd solids** (`4c44ab4`): network `going` skip street props — **verified** tip-livingcity `81/83`: `stuck:0`, `afterFast.wrong:0`, stalls 14 PASS (`tip-verify-livingcity-4c44ab4.log`). Remaining tip FAILs: Lagos 14:00 `gaveUp:6` (threshold ~4); PH stall hours softened to allow one trader late (`due−1`).
 
-**Tip-only character (2-skin meshopt GLBs):** `garments45` leg poke-through (mini/knee skirt idle >1%; senator sit hands) vs bf55 PASS on larger GLBs; `clothingstyle` studio `#cs-shot` never filled (`shotShown:false`) then `game.modules` undefined mid-suite. Shared with bf55: `anyamount` clickable flake, `farwalk` walkers:0.
+**Tip-only character (2-skin meshopt GLBs):** `garments45` leg poke-through vs bf55 **7/7 garments PASS** (bf55 clothingstyle ProtocolError flake); tip `clothingstyle` `#cs-shot` `shotShown:false`. Shared: `anyamount` clickable, `farwalk` walkers:0.
 
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 

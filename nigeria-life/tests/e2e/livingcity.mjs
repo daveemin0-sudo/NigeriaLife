@@ -510,7 +510,8 @@ export async function run(browser, check) {
   const stallCheck = (name, d, want) => {
     stallDays[name] = d;
     check(`livingcity: ${name}: ${want.text}`, want.ok(d), { stalls: d.stalls, bySells: d.bySells, unkept: d.unkept, agents: d.agents });
-    const wrong = d.day.filter((x) => x.upShut > 0 || x.dueUp < x.due * 0.9 || x.drawnWrong > 0);
+    // Allow one trader still on the way (dueUp ≥ due−1); PH often has 6/7 at 21:30 with every stall kept.
+    const wrong = d.day.filter((x) => x.upShut > 0 || x.dueUp < Math.max(0, x.due - 1) || x.drawnWrong > 0);
     check(`livingcity: ${name}, a day and the night after: a stall is up only in its own hours, up when it should be, and drawn as it is (through midnight and on to 3 am)`,
       wrong.length === 0, d.day);
     check(`livingcity: ${name}: customers come to the stalls, wait at the counter to be served, and go (eating beside a food stall, or on their way), never at a stall that is shut, and the trader serves whoever is at the counter`,
