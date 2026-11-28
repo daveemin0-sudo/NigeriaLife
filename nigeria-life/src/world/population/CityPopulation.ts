@@ -841,19 +841,18 @@ export class CityPopulation {
    */
   private applySolidStep(a: Agent, nx: number, nz: number): void {
     const solids = this.solids?.();
-    // Road crossers stay on the carriageway on purpose. Everyone else near the camera
-    // steers around street props. Pavement-network "going" walkers use propsOnly so
-    // building walls/doors on their route still work and they are not stranded.
-    if (!solids || a.xing || a.willCross) {
+    // Road crossers stay on the carriageway on purpose. Network "going" walkers stay on the
+    // pavement graph (bf55 commute) — prop solids (stalls/poles) on a node edge stranded
+    // morning set-out (livingcity stuck>0 / afterFast wrong). Pacers near the camera still
+    // steer around street props for what the player sees.
+    if (!solids || a.xing || a.willCross || a.life?.state === 'going') {
       a.x = nx;
       a.z = nz;
       a.solidBlock = false;
       a.solidStuck = 0;
       return;
     }
-    const propsOnly = a.life?.state === 'going';
-    const blockedAt = (x: number, z: number, r: number) =>
-      propsOnly ? (solids.propAt?.(x, z, r) ?? solids.at(x, z, r)) : solids.at(x, z, r);
+    const blockedAt = (x: number, z: number, r: number) => solids.at(x, z, r);
     if (!this.takeSolidCheck(a)) {
       // Budget miss: still never step into a prop/solid near the player (cheap at-query, no slide).
       // Already standing in one (trader, set-down): free to walk out.
@@ -866,7 +865,7 @@ export class CityPopulation {
       a.z = nz;
       return;
     }
-    const slid = solids.step(a.x, a.z, nx, nz, 0.3, this.solidStep, propsOnly);
+    const slid = solids.step(a.x, a.z, nx, nz, 0.3, this.solidStep);
     if (!slid.stopped && slid.x === nx && slid.z === nz) {
       a.x = nx;
       a.z = nz;
@@ -901,7 +900,7 @@ export class CityPopulation {
         const lx = a.x + px * s * dist;
         const lz = a.z + pz * s * dist;
         if (a.onMainWalk && Math.abs(lx) < MAIN_ROAD.halfRoad + 0.65) continue;
-        const alt = solids.step(a.x, a.z, lx, lz, 0.3, this.solidStep, propsOnly);
+        const alt = solids.step(a.x, a.z, lx, lz, 0.3, this.solidStep);
         if (alt.stopped) continue;
         if (a.onMainWalk && Math.abs(alt.x) < MAIN_ROAD.halfRoad + 0.65) continue;
         a.x = alt.x;
